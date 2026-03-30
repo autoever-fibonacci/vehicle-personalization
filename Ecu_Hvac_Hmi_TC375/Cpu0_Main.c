@@ -29,11 +29,6 @@
 #include "Ifx_Cfg_Ssw.h"
 #include "Ifx_Types.h"
 
-#include "Ambient.h"
-#include "IfxPort.h"
-#include "IfxPort_PinMap.h"
-#define LED1 IfxPort_P00_5
-
 IFX_ALIGN(4)
 IfxCpu_syncEvent cpuSyncEvent = 0;
 
@@ -51,17 +46,7 @@ void core0_main(void)
   IfxCpu_emitEvent(&cpuSyncEvent);
   IfxCpu_waitEvent(&cpuSyncEvent, 1);
 
-  IfxPort_setPinModeOutput(LED1.port,
-                           LED1.pinIndex,
-                           IfxPort_OutputMode_pushPull,
-                           IfxPort_OutputIdx_general);
-  initAmbient();
-
   while (1)
   {
-    volatile int i = 100000000;
-    IfxPort_togglePin(LED1.port, LED1.pinIndex);
-    while (i--);
-    applyAmbient();
   }
 }
