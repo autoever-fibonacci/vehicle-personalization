@@ -248,7 +248,7 @@ static void convertHSVtoRGB(float h, float s, float v, uint8 *r, uint8 *g, uint8
 void initAmbient(void)
 {
   initQSPI();
-  setAmbientColor(0, 100);
+  setAmbientColor(0, 100, 100);
 }
 
 void applyAmbient(void)
