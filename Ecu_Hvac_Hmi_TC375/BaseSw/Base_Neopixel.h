@@ -45,22 +45,9 @@
 /*********************************************************************************************************************/
 /*-------------------------------------------------Data Structures---------------------------------------------------*/
 /*********************************************************************************************************************/
-#define _REPLACE_BUFFER_
-#ifndef _REPLACE_BUFFER_
-typedef struct
-{
-  uint8 spiMasterTxBuffer[SPI_BUFFER_SIZE]; /* QSPI Master Transmit buffer  */
-  uint8 spiMasterRxBuffer[SPI_BUFFER_SIZE]; /* QSPI Master Receive buffer   */
-  uint8 spiSlaveTxBuffer[SPI_BUFFER_SIZE];  /* QSPI Slave Transmit buffer   */
-  uint8 spiSlaveRxBuffer[SPI_BUFFER_SIZE];  /* QSPI Slave Receive buffer    */
-} qspiBuffers;
-#endif
 
 typedef struct
 {
-#ifndef _REPLACE_BUFFER_
-  qspiBuffers qspiBuffer; /* Buffers instance             */
-#endif
   IfxQspi_SpiMaster spiMaster;                /* QSPI Master handle           */
   IfxQspi_SpiMaster_Channel spiMasterChannel; /* QSPI Master Channel handle   */
 } qspiDma;
@@ -68,8 +55,13 @@ typedef struct
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
-void initAmbient(void);                    // 초기 설정
-void applyAmbient(void);                   // 현재 설정된 색 전송
-void setAmbientColor(int h, int s, int v); // hue(색조): 0-360, saturation(채도): 0-100, value(밝기): 0-100
+void setNeopixelColor(uint32 ledIndex, uint8 red, uint8 green, uint8 blue);
+void setNeopixelColorHSV(uint32 ledIndex, uint8 hue, uint8 sat, uint8 val);
+void shiftLedsForward(uint8 r, uint8 g, uint8 b);
+void shiftLedsBackward(uint8 r, uint8 g, uint8 b);
+void convertHSVtoRGB(float h, float s, float v, uint8 *r, uint8 *g, uint8 *b);
+void initNeopixel(void);                     // 초기 설정
+void transmitNeopixel(void);                 // 현재 설정된 색 전송
+void setAllLEDColorHSV(int h, int s, int v); // hue(색조): 0-360, saturation(채도): 0-100, value(밝기): 0-100
 
 #endif /* SPI_DMA_H_ */
