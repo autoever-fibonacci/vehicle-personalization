@@ -39,7 +39,7 @@ void ONEWIRE_OUTPUT(OneWire_t *gp);
 #define ONEWIRE_CMD_SKIPROM             0xCC
 
 //#######################################################################################################
-void OneWire_Init(OneWire_t* OneWireStruct, Ifx_P* port, uint8 pinIndex);
+void  OneWire_Init(OneWire_t* OneWireStruct, Ifx_P* port, uint8 pinIndex);
 uint8 OneWire_Reset(OneWire_t* OneWireStruct);
 uint8 OneWire_ReadByte(OneWire_t* OneWireStruct);
 void  OneWire_WriteByte(OneWire_t* OneWireStruct, uint8 byte);
