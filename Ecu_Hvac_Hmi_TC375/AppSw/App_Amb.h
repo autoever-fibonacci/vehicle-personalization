@@ -14,6 +14,8 @@ typedef enum
 
 void Amb_init(void);
 void Amb_nextmode(void);
+
+// 일정 주기로 실행 필요
 void Amb_transition(void);
 
 #endif
