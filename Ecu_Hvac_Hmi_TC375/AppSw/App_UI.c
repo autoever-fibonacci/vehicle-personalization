@@ -5,6 +5,8 @@ static void joydtask(void);
 static void joyltask(void);
 static void joyrtask(void);
 static void swtask(void);
+
+// TODO
 static uint8 getCurrentProfile(void);
 static void setCurrentProfile(uint8 prof);
 
@@ -72,9 +74,6 @@ void UI_task(void)
   {
     pushcnt = 0;
   }
-
-  // 앰비언트 틱 진행
-  Amb_transition();
 
   // LCD 출력
   static uint8 th = 0;
@@ -241,12 +240,12 @@ static void swtask(void)
 }
 
 static uint8 cp = 1;
-static uint8 getCurrentProfile(void)
+static uint8 getCurrentProfile(void) // TODO
 {
   return cp;
 }
 
-static void setCurrentProfile(uint8 prof)
+static void setCurrentProfile(uint8 prof) // TODO
 {
   cp = prof;
 }

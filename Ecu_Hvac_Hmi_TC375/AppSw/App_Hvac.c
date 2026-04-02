@@ -89,7 +89,7 @@ static void turnoff(void)
   Fan_setSpeed(0);
 }
 
-static uint8 Hvac_getTemperature(void)
+static uint8 Hvac_getTemperature(void) // TODO
 {
   return 22;
 }
