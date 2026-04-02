@@ -1,4 +1,4 @@
-#include "App_TempService.h"
+#include <App_Temp_Service.h>
 
 typedef struct
 {
@@ -12,9 +12,9 @@ typedef struct
 static Ds18b20_Context_t      g_ds18b20_context;
 static App_TempService_Data_t g_temp_service;
 
-static void App_TempService_ResetFsmToIdle(void);
+static void App_Temp_Service_ResetFsmToIdle(void);
 
-void App_TempService_Init(void)
+void App_Temp_Service_Init(void)
 {
     Ds18b20_Fsm_Init(&g_ds18b20_context);
 
@@ -25,7 +25,7 @@ void App_TempService_Init(void)
     g_temp_service.is_initialized         = TRUE;
 }
 
-void App_TempService_MainFunction(void)
+void App_Temp_Service_Run(void)
 {
     sint16 temperature_x10;
 
@@ -43,7 +43,7 @@ void App_TempService_MainFunction(void)
         {
             g_temp_service.is_error            = TRUE;
             g_temp_service.is_update_requested = FALSE;
-            App_TempService_ResetFsmToIdle();
+            App_Temp_Service_ResetFsmToIdle();
             return;
         }
     }
@@ -66,17 +66,17 @@ void App_TempService_MainFunction(void)
         }
 
         g_temp_service.is_update_requested = FALSE;
-        App_TempService_ResetFsmToIdle();
+        App_Temp_Service_ResetFsmToIdle();
     }
     else if (Ds18b20_Fsm_IsError(&g_ds18b20_context) == TRUE)
     {
         g_temp_service.is_error            = TRUE;
         g_temp_service.is_update_requested = FALSE;
-        App_TempService_ResetFsmToIdle();
+        App_Temp_Service_ResetFsmToIdle();
     }
 }
 
-boolean App_TempService_RequestUpdate(void)
+boolean App_Temp_Service_RequestUpdate(void)
 {
     if (g_temp_service.is_initialized != TRUE)
     {
@@ -99,7 +99,7 @@ boolean App_TempService_RequestUpdate(void)
     return TRUE;
 }
 
-boolean App_TempService_IsBusy(void)
+boolean App_Temp_Service_IsBusy(void)
 {
     if (g_temp_service.is_initialized != TRUE)
     {
@@ -110,7 +110,7 @@ boolean App_TempService_IsBusy(void)
                      (Ds18b20_Fsm_IsBusy(&g_ds18b20_context) == TRUE));
 }
 
-boolean App_TempService_IsDataValid(void)
+boolean App_Temp_Service_IsDataValid(void)
 {
     if (g_temp_service.is_initialized != TRUE)
     {
@@ -120,7 +120,7 @@ boolean App_TempService_IsDataValid(void)
     return g_temp_service.is_data_valid;
 }
 
-boolean App_TempService_IsError(void)
+boolean App_Temp_Service_IsError(void)
 {
     if (g_temp_service.is_initialized != TRUE)
     {
@@ -130,7 +130,7 @@ boolean App_TempService_IsError(void)
     return g_temp_service.is_error;
 }
 
-boolean App_TempService_GetLatestTemperatureX10(sint16* temperature_x10)
+boolean App_Temp_Service_GetLatestTemp_X10(sint16* temperature_x10)
 {
     if ((g_temp_service.is_initialized != TRUE) || (temperature_x10 == NULL_PTR))
     {
@@ -146,7 +146,7 @@ boolean App_TempService_GetLatestTemperatureX10(sint16* temperature_x10)
     return TRUE;
 }
 
-Ds18b20_State_t App_TempService_GetFsmState(void)
+Ds18b20_State_t App_Temp_Service_GetFsmState(void)
 {
     if (g_temp_service.is_initialized != TRUE)
     {
@@ -156,7 +156,7 @@ Ds18b20_State_t App_TempService_GetFsmState(void)
     return Ds18b20_Fsm_GetState(&g_ds18b20_context);
 }
 
-static void App_TempService_ResetFsmToIdle(void)
+static void App_Temp_Service_ResetFsmToIdle(void)
 {
     g_ds18b20_context.state         = DS18B20_STATE_IDLE;
     g_ds18b20_context.is_busy       = FALSE;
