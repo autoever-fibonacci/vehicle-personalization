@@ -4,6 +4,7 @@
 #include "Base_Driver_Mfrc522.h"
 #include "App_Manager_Rfid.h"
 #include "IfxPort.h"
+#include "UART_Config.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -15,8 +16,8 @@
 #define APP_MANAGER_RFID_LOCKOUT_MS            5000U
 
 /* 성공/실패 피드백 상태 유지 시간 */
-#define APP_MANAGER_RFID_SUCCESS_FEEDBACK_MS   1000U
-#define APP_MANAGER_RFID_FAIL_FEEDBACK_MS      1000U
+#define APP_MANAGER_RFID_SUCCESS_FEEDBACK_MS   500U
+#define APP_MANAGER_RFID_FAIL_FEEDBACK_MS      500U
 
 /* 카드 순간 검출 노이즈를 줄이기 위한 연속 polling 확인 횟수 */
 #define APP_MANAGER_RFID_POLL_CONFIRM_COUNT    3U
@@ -129,6 +130,7 @@ static App_Manager_Rfid_Context_t g_app_manager_rfid_context;
 /* 등록된 카드 UID를 저장하는 간단한 내부 DB */
 static App_Manager_Rfid_DbEntry_t g_app_manager_rfid_db[APP_MANAGER_RFID_DB_MAX_CARDS];
 
+
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
@@ -231,6 +233,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
         register_flag = input->register_flag;
     }
 
+
     /* 드라이버 초기화 실패 시 어떠한 동작도 하지 않고 즉시 반환 */
     if (g_app_manager_rfid_context.init_ok == FALSE)
     {
@@ -267,7 +270,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
             App_Manager_Rfid_ResetContext(now_ms);
             App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_IDLE, now_ms);
         }
-        else if (App_Manager_Rfid_IsCardPresent() != FALSE)
+        else if (App_Manager_Rfid_IsCardPresent() == TRUE)
         {
             /* 카드가 검출되면 연속 감지 카운트 증가 */
             g_app_manager_rfid_context.detect_count++;
@@ -301,14 +304,14 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
             App_Manager_Rfid_ResetContext(now_ms);
             App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_IDLE, now_ms);
         }
-        else if (App_Manager_Rfid_ReadCardUid(&uid) != FALSE)
+        else if (App_Manager_Rfid_ReadCardUid(&uid) == TRUE)
         {
             /* UID 읽기에 성공하면 current_uid에 저장 */
             App_Manager_Rfid_CopyUid(&g_app_manager_rfid_context.current_uid, &uid);
             g_app_manager_rfid_context.has_current_uid = TRUE;
 
             /* 이미 등록된 카드라면 인증 성공 */
-            if (App_Manager_Rfid_DbContains(&uid) != FALSE)
+            if (App_Manager_Rfid_DbContains(&uid) == TRUE)
             {
                 /* 성공 시 실패 누적 카운트 초기화 */
                 g_app_manager_rfid_context.fail_count = 0U;
@@ -397,6 +400,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
             App_Manager_Rfid_ClearUid(&g_app_manager_rfid_context.current_uid);
             App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_POLLING, now_ms);
         }
+
         break;
 
     case APP_MANAGER_RFID_STATE_FEEDBACK_SUCCESS:
@@ -451,6 +455,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
             App_Manager_Rfid_ClearUid(&g_app_manager_rfid_context.current_uid);
             App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_POLLING, now_ms);
         }
+
         break;
 
     case APP_MANAGER_RFID_STATE_LOCKOUT:
@@ -474,6 +479,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
             App_Manager_Rfid_ClearUid(&g_app_manager_rfid_context.current_uid);
             App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_POLLING, now_ms);
         }
+
         break;
 
     default:
@@ -508,7 +514,22 @@ static void App_Manager_Rfid_ResetDb(void)
         App_Manager_Rfid_ClearUid(&g_app_manager_rfid_db[idx].uid);
     }
 
-    g_
+    g_app_manager_rfid_db[0].used = 1;
+    g_app_manager_rfid_db[1].used = 1;
+
+    g_app_manager_rfid_db[0].uid.size = 4;
+    g_app_manager_rfid_db[1].uid.size = 4;
+
+    g_app_manager_rfid_db[0].uid.uid[0] = 0x86; // big-endian
+    g_app_manager_rfid_db[0].uid.uid[1] = 0xb8;
+    g_app_manager_rfid_db[0].uid.uid[2] = 0x24;
+    g_app_manager_rfid_db[0].uid.uid[3] = 0x07;
+
+    g_app_manager_rfid_db[1].uid.uid[0] = 0x52; // big-endian
+    g_app_manager_rfid_db[1].uid.uid[1] = 0xda;
+    g_app_manager_rfid_db[1].uid.uid[2] = 0x24;
+    g_app_manager_rfid_db[1].uid.uid[3] = 0x07;
+
 }
 
 /*
@@ -526,7 +547,6 @@ static void App_Manager_Rfid_ClearUid(Mfrc522_Uid *uid)
     }
 
     uid->size = 0U;
-    uid->sak  = 0U;
 
     for (idx = 0U; idx < (uint8)sizeof(uid->uid); ++idx)
     {
@@ -549,7 +569,6 @@ static void App_Manager_Rfid_CopyUid(Mfrc522_Uid *dst, const Mfrc522_Uid *src)
     }
 
     dst->size = src->size;
-    dst->sak  = src->sak;
 
     for (idx = 0U; idx < (uint8)sizeof(dst->uid); ++idx)
     {
@@ -641,11 +660,11 @@ static boolean App_Manager_Rfid_IsCardPresent(void)
 {
     uint8          atqa[2];
     Mfrc522_Status st;
-
+    Mfrc522_Uid    uid;
     atqa[0] = 0U;
     atqa[1] = 0U;
 
-    st = Base_Driver_Mfrc522_RequestA(atqa);
+    st = Base_Driver_Mfrc522_ReadUid(&uid);
 
     return (st == MFRC522_STATUS_OK) ? TRUE : FALSE;
 }
