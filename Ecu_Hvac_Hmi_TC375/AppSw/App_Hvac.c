@@ -3,19 +3,19 @@
 #include "IfxPort.h"
 #include "Ifx_PinMap.h"
 
-static uint8 heat_threshold;
-static uint8 cool_threshold;
+volatile static uint8 heat_threshold;
+volatile static uint8 cool_threshold;
 
 #define BLUELED &MODULE_P10, 2
 #define REDLED  &MODULE_P10, 1
 
-#define MIN_H_TH 0
+#define MIN_H_TH 6
 #define MAX_H_TH 22
-#define MIN_C_TH 18
+#define MIN_C_TH 16
 #define MAX_C_TH 30
 
 // 구현 필요한 함수
-// extern uint8 Hvac_getTemperature(void);
+static uint8 Hvac_getTemperature(void);
 
 // 내부 라이브러리
 static void turnonCooling(void);
@@ -61,26 +61,25 @@ uint8 Hvac_getCoolThreshold(void)
 
 void Hvac_updateHvac(void)
 {
-  uint8 temp = 10;
-  // uint8 temp = Hvac_getTemperature();
+  volatile uint8 temp = Hvac_getTemperature();
   if (temp >= cool_threshold + 2)
     turnonCooling();
   else if (temp <= heat_threshold - 2)
     turnonHeating();
-  else if (temp <= cool_threshold - 1 || temp >= heat_threshold + 1)
+  else if (temp <= cool_threshold - 1 && temp >= heat_threshold + 1)
     turnoff();
 }
 
 static void turnonCooling(void)
 {
   IfxPort_setPinLow(BLUELED);
-  Fan_setSpeed(10);
+  Fan_setSpeed(80);
 }
 
 static void turnonHeating(void)
 {
   IfxPort_setPinLow(REDLED);
-  Fan_setSpeed(10);
+  Fan_setSpeed(80);
 }
 
 static void turnoff(void)
@@ -88,4 +87,9 @@ static void turnoff(void)
   IfxPort_setPinHigh(BLUELED);
   IfxPort_setPinHigh(REDLED);
   Fan_setSpeed(0);
+}
+
+static uint8 Hvac_getTemperature(void)
+{
+  return 22;
 }

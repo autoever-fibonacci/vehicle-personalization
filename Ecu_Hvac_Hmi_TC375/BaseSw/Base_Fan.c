@@ -36,7 +36,7 @@ void Fan_init(void)
   g_motorPwmConfig.pin.outputMode = IfxPort_OutputMode_pushPull;
   g_motorPwmConfig.pin.padDriver = IfxPort_PadDriver_cmosAutomotiveSpeed1;
   g_motorPwmConfig.synchronousUpdateEnabled = TRUE;
-  g_motorPwmConfig.period = 10000;
+  g_motorPwmConfig.period = 1000;
   g_motorPwmConfig.dutyCycle = 0;
   g_motorPwmConfig.clock = IfxGtm_Tom_Ch_ClkSrc_cmuFxclk0;
 
@@ -51,6 +51,6 @@ void Fan_setSpeed(uint8 speed)
   IfxGtm_Tom_Ch_setCompareOneShadow(
       g_tomPwmDriver.tom,        // 현재 사용 중인 TOM 모듈 포인터
       g_tomPwmDriver.tomChannel, // 현재 할당된 TOM 채널 번호
-      (uint32)speed * 100        // 새로 적용할 듀티 값 (타이머 틱 기준)
+      (uint32)speed * 10         // 새로 적용할 듀티 값 (타이머 틱 기준)
   );
 }
