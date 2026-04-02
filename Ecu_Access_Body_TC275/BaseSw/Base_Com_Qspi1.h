@@ -1,5 +1,5 @@
-#ifndef BASE_QSPI1_H_
-#define BASE_QSPI1_H_
+#ifndef BASE_COM_QSPI1_H_
+#define BASE_COM_QSPI1_H_
 
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
@@ -11,37 +11,37 @@
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
 /*********************************************************************************************************************/
-#define SPI_BUFFER_SIZE     128                     /* Buffers size                  */
+#define BASE_COM_QSPI1_BUFFER_SIZE    128U    /* Buffer size */
 
 /*********************************************************************************************************************/
 /*-------------------------------------------------Data Structures---------------------------------------------------*/
 /*********************************************************************************************************************/
 typedef struct
 {
-    uint8 spiMasterTxBuffer[SPI_BUFFER_SIZE];       /* QSPI Master Transmit buffer   */
-    uint8 spiMasterRxBuffer[SPI_BUFFER_SIZE];       /* QSPI Master Receive buffer    */
-    uint8 spiSlaveTxBuffer[SPI_BUFFER_SIZE];        /* QSPI Slave Transmit buffer    */
-    uint8 spiSlaveRxBuffer[SPI_BUFFER_SIZE];        /* QSPI Slave Receive buffer     */
-} qspiBuffers;
+    uint8 spiMasterTxBuffer[BASE_COM_QSPI1_BUFFER_SIZE];    /* QSPI master transmit buffer */
+    uint8 spiMasterRxBuffer[BASE_COM_QSPI1_BUFFER_SIZE];    /* QSPI master receive buffer  */
+    uint8 spiSlaveTxBuffer[BASE_COM_QSPI1_BUFFER_SIZE];     /* QSPI slave transmit buffer  */
+    uint8 spiSlaveRxBuffer[BASE_COM_QSPI1_BUFFER_SIZE];     /* QSPI slave receive buffer   */
+} Base_Com_Qspi1_BuffersType;
 
 typedef struct
 {
-    qspiBuffers               spiBuffers;           /* Buffers instance              */
-    IfxQspi_SpiMaster         spiMaster;            /* QSPI Master handle            */
-    IfxQspi_SpiMaster_Channel spiMasterChannel;     /* QSPI Master Channel handle    */
-    IfxQspi_SpiSlave          spiSlave;             /* QSPI Slave handle             */
-} qspiComm;
+    Base_Com_Qspi1_BuffersType spiBuffers;       /* Buffer instance              */
+    IfxQspi_SpiMaster          spiMaster;        /* QSPI master handle           */
+    IfxQspi_SpiMaster_Channel  spiMasterChannel; /* QSPI master channel handle   */
+    IfxQspi_SpiSlave           spiSlave;         /* QSPI slave handle            */
+} Base_Com_Qspi1_Type;
 
 /*********************************************************************************************************************/
-/*-------------------------------------------------Global Variables---------------------------------------------------*/
+/*-------------------------------------------------Global Variables--------------------------------------------------*/
 /*********************************************************************************************************************/
-extern qspiComm g_qspi1;
+extern Base_Com_Qspi1_Type g_base_com_qspi1;
 
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
-void QSPI1_Init(void);
-uint8 QSPI1_TransferByte(uint8 tx);
-void QSPI1_Transfer(const uint8 *tx, uint8 *rx, uint32 len);
+void  Base_Com_Qspi1_Init(void);
+uint8 Base_Com_Qspi1_TransferByte(uint8 tx);
+void  Base_Com_Qspi1_Transfer(const uint8 *tx, uint8 *rx, uint32 len);
 
-#endif /* BASE_QSPI1_H_ */
+#endif /* BASE_COM_QSPI1_H_ */
