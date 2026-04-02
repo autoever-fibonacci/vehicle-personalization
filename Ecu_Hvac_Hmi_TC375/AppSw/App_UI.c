@@ -56,6 +56,7 @@ void UI_task(void)
     case JOY_RIGHT:
       joyrtask();
       break;
+    default:;
     }
   }
   prev = res;
@@ -80,7 +81,7 @@ void UI_task(void)
   switch (uistate)
   {
   case ST_PROFILE_SEL:
-    LCD_printString("<Profile Select>", UPPERLINE);
+    LCD_printString("\x7FProfile Select\x7E", UPPERLINE);
     profline[12] = profsel + '0';
     if (profsel == getCurrentProfile())
       profline[2] = '[', profline[13] = ']';
@@ -90,12 +91,12 @@ void UI_task(void)
     break;
 
   case ST_AMB_COL_SEL:
-    LCD_printString("<Amb Color Set >", UPPERLINE);
+    LCD_printString("\x7F Amb Col Set  \x7E", UPPERLINE);
     LCD_printString("+    Color     -", LOWERLINE);
     break;
 
   case ST_AMB_MOD_SEL:
-    LCD_printString("< Amb Mode Set >", UPPERLINE);
+    LCD_printString("\x7F Amb Mode Set \x7E", UPPERLINE);
     switch (Amb_getmode())
     {
     case AMB_CONSTANT:
@@ -114,7 +115,7 @@ void UI_task(void)
     break;
 
   case ST_COOLTEM_SEL:
-    LCD_printString("< Cooling When >", UPPERLINE);
+    LCD_printString("\x7F Cooling When \x7E", UPPERLINE);
     th = Hvac_getCoolThreshold();
     coolline[9] = (th < 10 ? ' ' : (th / 10) + '0');
     coolline[10] = (th % 10 + '0');
@@ -122,7 +123,7 @@ void UI_task(void)
     break;
 
   case ST_HEATTEM_SEL:
-    LCD_printString("< Heating When >", UPPERLINE);
+    LCD_printString("\x7F Heating When \x7E", UPPERLINE);
     th = Hvac_getHeatThreshold();
     heatline[9] = (th < 10 ? ' ' : (th / 10) + '0');
     heatline[10] = (th % 10 + '0');

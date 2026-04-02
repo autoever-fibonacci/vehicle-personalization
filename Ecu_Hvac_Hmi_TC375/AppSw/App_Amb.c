@@ -1,9 +1,11 @@
 #include "App_Amb.h"
 #include "Base_Neopixel.h"
 
-#define MAXVAL 75
-#define MINVAL 20
-#define DVAL   5
+#define MAXVAL    75
+#define MINVAL    20
+#define DVAL_BR   2
+#define DVAL_WA   5
+#define PRESCALER 10
 
 static Amb_mode_e ambmode;
 static int baseh, bases, basev;
@@ -44,14 +46,17 @@ void Amb_nextmode(void)
 
 void Amb_transition(void)
 {
+  static int cnt = PRESCALER;
+  if (--cnt) return;
+  cnt = PRESCALER;
   if (breathdesc)
   {
-    if ((nowv -= DVAL) < MINVAL)
+    if ((nowv -= (ambmode == AMB_BREATH ? DVAL_BR : DVAL_WA)) < MINVAL)
       breathdesc = FALSE, nowv = MINVAL;
   }
   else
   {
-    if ((nowv += DVAL) > MAXVAL)
+    if ((nowv += (ambmode == AMB_BREATH ? DVAL_BR : DVAL_WA)) > MAXVAL)
       breathdesc = TRUE, nowv = MAXVAL;
   }
   switch (ambmode)
