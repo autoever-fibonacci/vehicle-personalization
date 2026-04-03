@@ -211,16 +211,16 @@ void App_Manager_Rfid_Init(uint32 now_ms)
  * - 같은 카드 재인식을 막기 위해 태그 제거를 기다림
  * - 실패 누적 시 lockout 상태로 진입
  */
-App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
-                                               const App_Manager_Rfid_Input_t *input)
+void  App_Manager_Rfid_Run(uint32 now_ms,
+                           const App_Manager_Rfid_Input_t *input,
+                           App_Manager_Rfid_Output_t *out)
 {
-    App_Manager_Rfid_Output_t out;
     Mfrc522_Uid               uid;
     boolean                   enable_flag;
     boolean                   register_flag;
 
     /* 기본 출력값은 "이벤트 없음" */
-    out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_NONE, NULL_PTR, FALSE);
+    *out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_NONE, NULL_PTR, FALSE);
 
     /* 입력이 NULL일 가능성에 대비한 기본값 */
     enable_flag   = FALSE;
@@ -237,7 +237,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
     /* 드라이버 초기화 실패 시 어떠한 동작도 하지 않고 즉시 반환 */
     if (g_app_manager_rfid_context.init_ok == FALSE)
     {
-        return out;
+        return;
     }
 
     /* 현재 상태에 따라 상태별 처리 수행 */
@@ -321,7 +321,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
                 g_app_manager_rfid_context.state_deadline_ms = now_ms + APP_MANAGER_RFID_SUCCESS_FEEDBACK_MS;
 
                 /* 외부로 success 이벤트 전달 */
-                out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_SUCCESS, &uid, TRUE);
+                *out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_SUCCESS, &uid, TRUE);
             }
             /* 등록 모드라면 UID 신규 등록 시도 */
             else if (register_flag == TRUE)
@@ -334,7 +334,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
                     App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_FEEDBACK_SUCCESS, now_ms);
                     g_app_manager_rfid_context.state_deadline_ms = now_ms + APP_MANAGER_RFID_SUCCESS_FEEDBACK_MS;
 
-                    out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_SUCCESS, &uid, TRUE);
+                    *out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_SUCCESS, &uid, TRUE);
                 }
                 else
                 {
@@ -352,7 +352,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
                         App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_LOCKOUT, now_ms);
                         g_app_manager_rfid_context.lockout_deadline_ms = now_ms + APP_MANAGER_RFID_LOCKOUT_MS;
 
-                        out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_LOCKOUT, &uid, TRUE);
+                        *out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_LOCKOUT, &uid, TRUE);
                     }
                     else
                     {
@@ -360,7 +360,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
                         App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_FEEDBACK_FAIL, now_ms);
                         g_app_manager_rfid_context.state_deadline_ms = now_ms + APP_MANAGER_RFID_FAIL_FEEDBACK_MS;
 
-                        out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_FAIL, &uid, TRUE);
+                        *out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_FAIL, &uid, TRUE);
                     }
                 }
             }
@@ -375,7 +375,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
                     App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_LOCKOUT, now_ms);
                     g_app_manager_rfid_context.lockout_deadline_ms = now_ms + APP_MANAGER_RFID_LOCKOUT_MS;
 
-                    out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_LOCKOUT, &uid, TRUE);
+                    *out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_LOCKOUT, &uid, TRUE);
                 }
                 else
                 {
@@ -383,7 +383,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
                     App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_FEEDBACK_FAIL, now_ms);
                     g_app_manager_rfid_context.state_deadline_ms = now_ms + APP_MANAGER_RFID_FAIL_FEEDBACK_MS;
 
-                    out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_FAIL, &uid, TRUE);
+                    *out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_FAIL, &uid, TRUE);
                 }
             }
         }
@@ -492,7 +492,7 @@ App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
         break;
     }
 
-    return out;
+    return;
 }
 
 /*********************************************************************************************************************/
@@ -742,7 +742,7 @@ static boolean App_Manager_Rfid_DbRegister(const Mfrc522_Uid *uid)
     }
 
     /* 이미 있는 UID면 중복 등록 대신 성공 처리 */
-    if (App_Manager_Rfid_DbContains(uid) != FALSE)
+    if (App_Manager_Rfid_DbContains(uid) == TRUE)
     {
         return TRUE;
     }

@@ -29,7 +29,7 @@ typedef struct
 } App_Manager_Rfid_Output_t;
 
 void App_Manager_Rfid_Init(uint32 now_ms);
-App_Manager_Rfid_Output_t App_Manager_Rfid_Run(uint32 now_ms,
-                                               const App_Manager_Rfid_Input_t *input);
-
+void App_Manager_Rfid_Run(uint32 now_ms,
+                          const App_Manager_Rfid_Input_t *input,
+                          App_Manager_Rfid_Output_t *out);
 #endif
