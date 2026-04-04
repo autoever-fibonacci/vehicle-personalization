@@ -13,7 +13,7 @@
 #define TX_MESSAGE_ID               0x100   /* 기본 송신 ID */
 #define RX_MESSAGE_ID               0x150   /* 375로부터 받을 ID */
 
-/* ⭐ TC375 스타일의 통합 구조체 정의 ⭐ */
+/* 통합 구조체 정의 */
 typedef struct
 {
     IfxMultican_Can             can;                /* 모듈 핸들 */
