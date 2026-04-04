@@ -3,7 +3,7 @@
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
 /*********************************************************************************************************************/
-#define APP_SCHEDULER_DUMMY_TEST    (1u)
+#define APP_SCHEDULER_DUMMY_TEST    (0u)
 
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
@@ -18,12 +18,8 @@
 #include "Shared_System_State.h"
 #include "Shared_Util_Time.h"
 #include "Shared_Can_Message.h"   /* 파일명이 다르면 실제 파일명에 맞게 수정 */
-
-#if (APP_SCHEDULER_DUMMY_TEST == 0u)
 #include "MCMCAN_FD.h"
-#else
 #include "UART_Config.h"
-#endif
 
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
@@ -78,6 +74,7 @@ static sint32  g_app_scheduler_prev_logged_state    = -1;
 static sint32  g_app_scheduler_prev_logged_profile  = -1;
 static sint32  g_app_scheduler_prev_logged_temp     = -128;
 static uint32  g_app_scheduler_prev_logged_state_ms = 0u;
+extern McmcanType g_mcmcan;
 #endif
 
 /*********************************************************************************************************************/
@@ -437,8 +434,6 @@ static boolean App_Scheduler_Can_ReadFrame(Shared_Can_Frame_t *rx_frame)
 
     elapsed_ms = g_app_scheduler_now_ms - g_app_scheduler_test_start_ms;
 
-    (void)memset(rx_frame, 0, sizeof(Shared_Can_Frame_t));
-
     /* 3초: valid uididx -> SLEEP에서 auth_event_valid */
     if ((g_app_scheduler_dummy_auth_sent == FALSE) && (elapsed_ms >= 3000u))
     {
@@ -481,32 +476,45 @@ static boolean App_Scheduler_Can_ReadFrame(Shared_Can_Frame_t *rx_frame)
 
 #else
     uint32 rx_data[SHARED_CAN_MAX_DATA_WORD_SIZE];
-    uint8  frame_size;
+    uint8  copy_size;
 
     if (rx_frame == NULL_PTR)
     {
         return FALSE;
     }
 
-    /*
-     * TODO: 실제 CAN RX API 연결
-     *
-     * 예시 개념:
-     * if (receiveCanMessage(rx_data) == FALSE)
-     * {
-     *     return FALSE;
-     * }
-     *
-     * rx_frame->message_id = g_mcmcan.rxMsg.messageId;
-     * rx_frame->dlc        = (uint8)g_mcmcan.rxMsg.dataLengthCode;
-     */
+    (void)memset(rx_frame, 0, sizeof(Shared_Can_Frame_t));
+    (void)memset(rx_data, 0, sizeof(rx_data));
 
-    (void)rx_data;
-    (void)frame_size;
+    if (receiveCanMessage(rx_data) == FALSE)
+    {
+        return FALSE;
+    }
 
-    return FALSE;
+    rx_frame->message_id   = g_mcmcan.rxMsg.messageId;
+    rx_frame->dlc          = (uint8)g_mcmcan.rxMsg.dataLengthCode;
+    rx_frame->frame_size   = Shared_Can_GetFrameSize(rx_frame->message_id);
+    rx_frame->payload_size = Shared_Can_GetPayloadSize(rx_frame->message_id);
+
+    if ((rx_frame->frame_size == 0U) || (rx_frame->payload_size == 0U))
+    {
+        return FALSE;
+    }
+
+    copy_size = rx_frame->frame_size;
+    if (copy_size > (uint8)sizeof(rx_frame->payload))
+    {
+        copy_size = (uint8)sizeof(rx_frame->payload);
+    }
+
+    (void)memcpy(rx_frame->payload,
+                 (const uint8 *)rx_data,
+                 copy_size);
+
+    return TRUE;
 #endif
 }
+
 
 static boolean App_Scheduler_Can_WriteFrame(const Shared_Can_Frame_t *tx_frame)
 {
@@ -595,6 +603,7 @@ static boolean App_Scheduler_Can_WriteFrame(const Shared_Can_Frame_t *tx_frame)
 
 #else
     uint32 tx_data[SHARED_CAN_MAX_DATA_WORD_SIZE];
+    uint8  copy_size;
 
     if (tx_frame == NULL_PTR)
     {
@@ -602,16 +611,18 @@ static boolean App_Scheduler_Can_WriteFrame(const Shared_Can_Frame_t *tx_frame)
     }
 
     (void)memset(tx_data, 0, sizeof(tx_data));
-    (void)memcpy((uint8 *)tx_data, tx_frame->payload, tx_frame->frame_size);
 
-    /*
-     * TODO: 실제 CAN TX API 연결
-     *
-     * 예시 개념:
-     * return sendCanMessage(tx_frame->message_id,
-     *                       tx_data,
-     *                       tx_frame->frame_size);
-     */
+    copy_size = tx_frame->frame_size;
+    if (copy_size > (uint8)sizeof(tx_data))
+    {
+        copy_size = (uint8)sizeof(tx_data);
+    }
+
+    (void)memcpy((uint8 *)tx_data,
+                 tx_frame->payload,
+                 copy_size);
+
+    transmitCanMessage(tx_frame->message_id, tx_data);
 
     return TRUE;
 #endif

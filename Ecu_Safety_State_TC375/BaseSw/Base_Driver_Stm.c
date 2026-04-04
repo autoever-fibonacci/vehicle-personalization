@@ -27,7 +27,7 @@ void Base_Driver_Stm_Init(void)
 
     g_base_driver_stm.stm_config.triggerPriority = BASE_DRIVER_STM_ISR_PRIORITY;
     g_base_driver_stm.stm_config.typeOfService   = IfxSrc_Tos_cpu0;
-    g_base_driver_stm.stm_config.ticks           = g_base_driver_stm_ticks_1ms;
+    g_base_driver_stm.stm_config.ticks           = (uint32)g_base_driver_stm_ticks_1ms;
 
     IfxStm_initCompare(g_base_driver_stm.stm_sfr, &g_base_driver_stm.stm_config);
 
@@ -53,7 +53,7 @@ void Base_Driver_Stm_Isr(void)
 
     IfxStm_increaseCompare(g_base_driver_stm.stm_sfr,
                            g_base_driver_stm.stm_config.comparator,
-                           g_base_driver_stm_ticks_1ms);
+                           (uint32)g_base_driver_stm_ticks_1ms);
 
     g_base_driver_stm_counter_1ms++;
 

@@ -117,23 +117,29 @@ void transmitCanMessage(uint32 txId, uint32 *pData)
 /* ⭐ [수신] TC275 스타일의 폴링 수신 함수 ⭐ */
 boolean receiveCanMessage(uint32 *rxData)
 {
-    /* Rx FIFO 0에 메시지가 쌓여있는지 레벨 체크 */
-    if (IfxCan_Can_getRxFifo0FillLevel(&g_mcmcan.canSrcNode) > 0)
+    uint8 idx;
+
+    if (rxData == NULL_PTR)
     {
-        IfxCan_Message rxMsg;
-        IfxCan_Can_initMessage(&rxMsg);
-        rxMsg.readFromRxFifo0 = TRUE;
-
-        /* FIFO에서 데이터를 긁어서 rxData 배열에 저장 */
-        IfxCan_Can_readMessage(&g_mcmcan.canSrcNode, &rxMsg, rxData);
-
-        /* g_mcmcan 구조체 내부 버퍼에도 동기화 */
-        for(int i = 0; i < 16; i++)
-        {
-            g_mcmcan.rxData[i] = rxData[i];
-        }
-        return TRUE; /* 수신 성공! */
+        return FALSE;
     }
 
-    return FALSE; /* 아직 들어온 데이터 없음 */
+    if (IfxCan_Can_getRxFifo0FillLevel(&g_mcmcan.canSrcNode) == 0U)
+    {
+        return FALSE;
+    }
+
+    IfxCan_Can_initMessage(&g_mcmcan.rxMsg);
+    g_mcmcan.rxMsg.readFromRxFifo0 = TRUE;
+
+    (void)IfxCan_Can_readMessage(&g_mcmcan.canSrcNode,
+                                 &g_mcmcan.rxMsg,
+                                 rxData);
+
+    for (idx = 0U; idx < 16U; ++idx)
+    {
+        g_mcmcan.rxData[idx] = rxData[idx];
+    }
+
+    return TRUE;
 }
