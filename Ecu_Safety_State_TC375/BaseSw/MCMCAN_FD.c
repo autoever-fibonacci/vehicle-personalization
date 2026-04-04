@@ -11,14 +11,13 @@ static const IfxCan_Can_Pins canPins =
     IfxPort_PadDriver_cmosAutomotiveSpeed1
 };
 
-/* ⭐ 폴링 방식을 위해 인터럽트 핸들러는 최소화하거나 비워둡니다 ⭐ */
+/* 폴링 방식을 위해 인터럽트 핸들러는 최소화하거나 비워둠 */
 // IFX_INTERRUPT(canIsrTxHandler, 0, ISR_PRIORITY_CAN_TX);
 void canIsrTxHandler(void)
 {
     IfxCan_Node_clearInterruptFlag(g_mcmcan.canSrcNode.node, IfxCan_Interrupt_transmissionCompleted);
 }
 
-/* 수신 인터럽트는 사용하지 않으므로 핸들러 정의만 유지하거나 제거해도 됩니다. */
 
 #include "MCMCAN_FD.h"
 
