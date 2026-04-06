@@ -57,12 +57,23 @@ static void App_Can_Service_HandleProfileIdx(uint8                       profile
         return;
     }
 
+    current_state = App_Manager_System_GetState();
+
+    if (profile_idx == SHARED_PROFILE_INDEX_INVALID)
+    {
+        if (current_state == SHARED_SYSTEM_STATE_SLEEP)
+        {
+            system_input->auth_event_valid     = TRUE;
+            system_input->active_profile_index = SHARED_PROFILE_INDEX_INVALID;
+        }
+
+        return;
+    }
+
     if (App_Can_Service_IsValidProfileIndex(profile_idx) == FALSE)
     {
         return;
     }
-
-    current_state = App_Manager_System_GetState();
 
     switch (current_state)
     {

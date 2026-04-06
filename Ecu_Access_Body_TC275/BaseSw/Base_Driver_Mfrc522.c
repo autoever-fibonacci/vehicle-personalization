@@ -126,8 +126,6 @@ Mfrc522_Status Base_Driver_Mfrc522_ReadUid(Mfrc522_Uid *outUid)
     outUid->size   = 0U;
     outUid->uid[0] = 0U;
     outUid->uid[1] = 0U;
-    outUid->uid[2] = 0U;
-    outUid->uid[3] = 0U;
 
     st = Base_Driver_Mfrc522_RequestA(atqa);
     if (st != MFRC522_STATUS_OK)
@@ -167,9 +165,7 @@ Mfrc522_Status Base_Driver_Mfrc522_ReadUid(Mfrc522_Uid *outUid)
 
     outUid->uid[0] = rxBuf[0];
     outUid->uid[1] = rxBuf[1];
-    outUid->uid[2] = rxBuf[2];
-    outUid->uid[3] = rxBuf[3];
-    outUid->size   = 4U;
+    outUid->size   = 2U;
 
     (void)Base_Driver_Mfrc522_RequestA(atqa);
 

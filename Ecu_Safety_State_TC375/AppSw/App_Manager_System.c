@@ -355,35 +355,35 @@ static void App_Manager_System_LoadDummyProfileTable(Shared_Profile_Table_t *pro
 
     (void)memset(profile_table, 0, sizeof(Shared_Profile_Table_t));
 
-    profile_table->profile[SHARED_PROFILE_INDEX_0].profile_id          = 1000U;
+    profile_table->profile[SHARED_PROFILE_INDEX_0].profile_id          = 0x86b8;
     profile_table->profile[SHARED_PROFILE_INDEX_0].side_motor_angle    = 20U;
     profile_table->profile[SHARED_PROFILE_INDEX_0].seat_motor_angle    = 110U;
     profile_table->profile[SHARED_PROFILE_INDEX_0].ambient_light       = 100U;
     profile_table->profile[SHARED_PROFILE_INDEX_0].ac_on_threshold     = 26;
     profile_table->profile[SHARED_PROFILE_INDEX_0].heater_on_threshold = 18;
 
-    profile_table->profile[SHARED_PROFILE_INDEX_1].profile_id          = 1001U;
+    profile_table->profile[SHARED_PROFILE_INDEX_1].profile_id          = 0x839c;
     profile_table->profile[SHARED_PROFILE_INDEX_1].side_motor_angle    = 60U;
     profile_table->profile[SHARED_PROFILE_INDEX_1].seat_motor_angle    = 140U;
     profile_table->profile[SHARED_PROFILE_INDEX_1].ambient_light       = 300U;
     profile_table->profile[SHARED_PROFILE_INDEX_1].ac_on_threshold     = 24;
     profile_table->profile[SHARED_PROFILE_INDEX_1].heater_on_threshold = 20;
 
-    profile_table->profile[SHARED_PROFILE_INDEX_2].profile_id          = 1002U;
+    profile_table->profile[SHARED_PROFILE_INDEX_2].profile_id          = 0x1234;
     profile_table->profile[SHARED_PROFILE_INDEX_2].side_motor_angle    = 100U;
     profile_table->profile[SHARED_PROFILE_INDEX_2].seat_motor_angle    = 170U;
     profile_table->profile[SHARED_PROFILE_INDEX_2].ambient_light       = 500U;
-    profile_table->profile[SHARED_PROFILE_INDEX_2].ac_on_threshold     = 22;
+    profile_table->profile[SHARED_PROFILE_INDEX_2].ac_on_threshold     = 26;
     profile_table->profile[SHARED_PROFILE_INDEX_2].heater_on_threshold = 21;
 
-    profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].profile_id          = 9000U;
+    profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].profile_id          = 0xfffe;
     profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].side_motor_angle    = 30U;
     profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].seat_motor_angle    = 128U;
     profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].ambient_light       = 200U;
     profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].ac_on_threshold     = 25;
     profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].heater_on_threshold = 19;
 
-    profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].profile_id          = 9999U;
+    profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].profile_id          = 0xffff;
     profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].side_motor_angle    = 0U;
     profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].seat_motor_angle    = 0U;
     profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].ambient_light       = 0U;

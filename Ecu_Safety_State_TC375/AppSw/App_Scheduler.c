@@ -44,6 +44,9 @@ static void    App_Scheduler_Task_Temp(void);
 /* SYSTEM */
 static void    App_Scheduler_Task_System(void);
 
+/* HELPER */
+static const char *App_Test_StateName(uint8 state);
+
 /*********************************************************************************************************************/
 /*------------------------------------------------Static Variables---------------------------------------------------*/
 /*********************************************************************************************************************/
@@ -251,6 +254,23 @@ static void App_Scheduler_Task_System(void)
 
     prev_state = g_app_scheduler_system_output.current_state;
 
+    /* CAN으로 유효한 프로필 인덱스가 들어온 경우 로그 */
+    if (g_app_scheduler_system_input.auth_event_valid == TRUE)
+    {
+        UART_Printf("[RX] AB_PROFILE_IDX valid idx=%u\r\n",
+                    g_app_scheduler_system_input.active_profile_index);
+
+        /* 테스트 시나리오:
+         * ACTIVATED 상태에서 다시 유효 태그가 들어오면 shutdown 요청
+         */
+        if ((g_app_scheduler_system_output.current_state == (uint8)SHARED_SYSTEM_STATE_ACTIVATED) &&
+            (g_app_scheduler_system_input.active_profile_index < SHARED_PROFILE_NORMAL_COUNT))
+        {
+            g_app_scheduler_system_input.shutdown_request = TRUE;
+            UART_Printf("[REQ] shutdown_request = TRUE\r\n");
+        }
+    }
+
     App_Manager_System_Run(g_app_scheduler_now_ms,
                            g_app_scheduler_local_temperature_x10,
                            &g_app_scheduler_system_input,
@@ -260,6 +280,10 @@ static void App_Scheduler_Task_System(void)
 
     if (prev_state != g_app_scheduler_system_output.current_state)
     {
+        UART_Printf("[STATE] %s -> %s\r\n",
+                    App_Test_StateName(prev_state),
+                    App_Test_StateName(g_app_scheduler_system_output.current_state));
+
         g_tx_state_requested = TRUE;
     }
 
@@ -267,5 +291,23 @@ static void App_Scheduler_Task_System(void)
         (g_app_scheduler_system_output.current_state == (uint8)SHARED_SYSTEM_STATE_SETUP))
     {
         g_app_scheduler_profile_table_tx_requested = TRUE;
+    }
+}
+
+
+/*********************************************************************************************************************/
+/*-----------------------------------------------Helper Functions-----------------------------------------------*/
+/*********************************************************************************************************************/
+static const char *App_Test_StateName(uint8 state)
+{
+    switch (state)
+    {
+    case SHARED_SYSTEM_STATE_SLEEP:     return "SLEEP";
+    case SHARED_SYSTEM_STATE_SETUP:     return "SETUP";
+    case SHARED_SYSTEM_STATE_ACTIVATED: return "ACTIVATED";
+    case SHARED_SYSTEM_STATE_SHUTDOWN:  return "SHUTDOWN";
+    case SHARED_SYSTEM_STATE_DENIED:    return "DENIED";
+    case SHARED_SYSTEM_STATE_EMERGENCY: return "EMERGENCY";
+    default:                            return "UNKNOWN";
     }
 }

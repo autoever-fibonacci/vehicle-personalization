@@ -103,8 +103,13 @@ void Servo_SetAngle(ServoInstance_t *s, sint16 angleDeg)
     uint16 pulseTicks;
 
     angleDeg = servoClampAngle(angleDeg);
-    s->currentAngleDeg = angleDeg;
 
+    if (s->currentAngleDeg == angleDeg)
+    {
+        return;
+    }
+
+    s->currentAngleDeg = angleDeg;
     pulseTicks = servoAngleToPulseTicks(s, angleDeg);
     servoApplyPulseRaw(s, pulseTicks);
 }
