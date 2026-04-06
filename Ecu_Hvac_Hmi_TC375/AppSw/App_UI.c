@@ -50,6 +50,7 @@ void App_Manager_UI_Init(void)
 {
   App_Manager_LCD_Init();
   LCD_clearScreen();
+  LCD_printString("Inited", LOWERLINE);
   Joystick_init();
   App_Manager_Ambient_Init();
   uistate = ST_PROFILE_SEL;
