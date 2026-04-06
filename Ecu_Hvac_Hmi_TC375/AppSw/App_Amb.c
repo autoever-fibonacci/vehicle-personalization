@@ -21,7 +21,7 @@ void App_Manager_Ambient_Init(void)
   basev = MAXVAL;
 }
 
-void Amb_nextmode(void)
+void App_Ambient_Nextmode(void)
 {
   nowv = MAXVAL;
   breathdesc = TRUE;
@@ -78,15 +78,15 @@ void App_Manager_Ambient_Run(void)
   transmitNeopixel();
 }
 
-void Amb_changeColor(sint8 amount)
+void App_Ambient_changeColor(sint8 amount)
 {
   baseh += amount + 360;
   baseh %= 360;
 }
 
-Amb_mode_e Amb_getmode(void)
+void Amb_getmode(Amb_mode_e *mode)
 {
-  return ambmode;
+  *mode = ambmode;
 }
 
 void Amb_off(void)

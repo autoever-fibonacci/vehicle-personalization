@@ -3,8 +3,8 @@
 #include "IfxPort.h"
 #include "Ifx_PinMap.h"
 
-volatile static uint8 heat_threshold;
-volatile static uint8 cool_threshold;
+volatile static sint8 heat_threshold;
+volatile static sint8 cool_threshold;
 
 #define BLUELED &MODULE_P10, 2
 #define REDLED  &MODULE_P10, 1
@@ -15,7 +15,7 @@ volatile static uint8 cool_threshold;
 #define MAX_C_TH 30
 
 // 구현 필요한 함수
-static uint8 Hvac_getTemperature(void);
+static sint8 Hvac_getTemperature(void);
 
 // 내부 라이브러리
 static void turnonCooling(void);
@@ -33,7 +33,7 @@ void App_Manaver_HVAC_Init(void)
   Fan_init();
 }
 
-uint8 Hvac_setHeatThreshold(uint8 th)
+uint8 Hvac_setHeatThreshold(sint8 th)
 {
   if (th < MIN_H_TH || th > MAX_H_TH || th + 2 >= cool_threshold)
     return 1;
@@ -46,7 +46,7 @@ uint8 Hvac_getHeatThreshold(void)
   return heat_threshold;
 }
 
-uint8 Hvac_setCoolThreshold(uint8 th)
+uint8 Hvac_setCoolThreshold(sint8 th)
 {
   if (th < MIN_C_TH || th > MAX_C_TH || th - 2 <= heat_threshold)
     return 1;
@@ -61,7 +61,7 @@ uint8 Hvac_getCoolThreshold(void)
 
 void App_Manager_HVAC_Run(void)
 {
-  volatile uint8 temp = Hvac_getTemperature();
+  volatile sint8 temp = Hvac_getTemperature();
   if (temp >= cool_threshold + 2)
     turnonCooling();
   else if (temp <= heat_threshold - 2)
@@ -89,7 +89,7 @@ static void turnoff(void)
   Fan_setSpeed(0);
 }
 
-static uint8 Hvac_getTemperature(void) // TODO
+static sint8 Hvac_getTemperature(void) // TODO
 {
   return 22;
 }

@@ -15,9 +15,9 @@ typedef enum
 #endif
 
 void App_Manager_Ambient_Init(void);
-void Amb_nextmode(void);
-void Amb_changeColor(sint8 amount);
-Amb_mode_e Amb_getmode(void);
+void App_Ambient_Nextmode(void);
+void App_Ambient_changeColor(sint8 amount);
+void Amb_getmode(Amb_mode_e *mode);
 void Amb_off(void);
 void Amb_on(void);
 

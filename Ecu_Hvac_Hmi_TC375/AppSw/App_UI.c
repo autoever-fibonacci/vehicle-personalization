@@ -105,7 +105,9 @@ void App_Manager_UI_Run(void)
 
   case ST_AMB_MOD_SEL:
     LCD_printString("\x7F Amb Mode Set \x7E", UPPERLINE);
-    switch (Amb_getmode())
+    Amb_mode_e ambmode;
+    Amb_getmode(&ambmode);
+    switch (ambmode)
     {
     case AMB_CONSTANT:
       LCD_printString("+   Constant   -", LOWERLINE);
@@ -153,12 +155,12 @@ static void joyutask()
     if (--profsel == 0) profsel = 5;
     break;
   case ST_AMB_COL_SEL:
-    Amb_changeColor(-20);
+    App_Ambient_changeColor(-20);
     break;
   case ST_AMB_MOD_SEL:
-    Amb_nextmode();
-    Amb_nextmode();
-    Amb_nextmode();
+    App_Ambient_Nextmode();
+    App_Ambient_Nextmode();
+    App_Ambient_Nextmode();
     break;
   case ST_COOLTEM_SEL:
     Hvac_setCoolThreshold(Hvac_getCoolThreshold() + 1);
@@ -179,10 +181,10 @@ static void joydtask()
     if (++profsel == 6) profsel = 1;
     break;
   case ST_AMB_COL_SEL:
-    Amb_changeColor(20);
+    App_Ambient_changeColor(20);
     break;
   case ST_AMB_MOD_SEL:
-    Amb_nextmode();
+    App_Ambient_Nextmode();
     break;
   case ST_COOLTEM_SEL:
     Hvac_setCoolThreshold(Hvac_getCoolThreshold() - 1);
