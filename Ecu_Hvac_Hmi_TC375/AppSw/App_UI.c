@@ -3,6 +3,7 @@
 /*********************************************************************************************************************/
 #include "App_UI.h"
 #include "App_Manager_System.h"
+#include "App_Scheduler.h"
 #include "Shared_Profile.h"
 
 /*********************************************************************************************************************/
@@ -37,6 +38,7 @@ static void joyltask(void);
 static void joyrtask(void);
 static void sw_shortpress(void);
 static void sw_longpress(void);
+static void profupdate(void);
 
 void App_Manager_UI_Init(void);
 void App_Manager_UI_Run(void);
@@ -55,7 +57,7 @@ void App_Manager_UI_Init(void)
   heatline[11] = 0xDF;
   coolline[12] = 'C';
   heatline[12] = 'C';
-  profsel = App_Manager_System_GetActiveProfileIndex();
+  App_Manager_System_GetActiveProfileIndex(&profsel);
 }
 
 void App_Manager_UI_Run(void)
@@ -102,12 +104,14 @@ void App_Manager_UI_Run(void)
 
   // LCD 출력
   static uint8 th = 0;
+  static uint8 nowprof;
   switch (uistate)
   {
   case ST_PROFILE_SEL:
     LCD_printString("\x7FProfile Select\x7E", UPPERLINE);
     profline[12] = profsel + '0';
-    if (profsel == App_Manager_System_GetActiveProfileIndex())
+    App_Manager_System_GetActiveProfileIndex(&nowprof);
+    if (profsel == nowprof)
       profline[2] = '[', profline[13] = ']';
     else
       profline[2] = ' ', profline[13] = ' ';
@@ -172,17 +176,21 @@ static void joyutask()
     break;
   case ST_AMB_COL_SEL:
     App_Ambient_changeColor(-20);
+    profupdate();
     break;
   case ST_AMB_MOD_SEL:
     App_Ambient_Nextmode();
     App_Ambient_Nextmode();
     App_Ambient_Nextmode();
+    profupdate();
     break;
   case ST_COOLTEM_SEL:
     Hvac_setCoolThreshold(Hvac_getCoolThreshold() + 1);
+    profupdate();
     break;
   case ST_HEATTEM_SEL:
     Hvac_setHeatThreshold(Hvac_getHeatThreshold() + 1);
+    profupdate();
     break;
   default:
     break;
@@ -198,15 +206,19 @@ static void joydtask()
     break;
   case ST_AMB_COL_SEL:
     App_Ambient_changeColor(20);
+    profupdate();
     break;
   case ST_AMB_MOD_SEL:
     App_Ambient_Nextmode();
+    profupdate();
     break;
   case ST_COOLTEM_SEL:
     Hvac_setCoolThreshold(Hvac_getCoolThreshold() - 1);
+    profupdate();
     break;
   case ST_HEATTEM_SEL:
     Hvac_setHeatThreshold(Hvac_getHeatThreshold() - 1);
+    profupdate();
     break;
   default:
     break;
@@ -266,16 +278,17 @@ static void sw_shortpress(void)
   if (uistate == ST_PROFILE_SEL)
   {
     App_Manager_System_SetActiveProfileIndex(profsel);
+    App_Scheduler_IdxTxReq();
   }
   if (uistate == ST_AMB_COL_SEL)
   {
-    LCD_lightoff();
-    Amb_off();
+    // LCD_lightoff();
+    // Amb_off();
   }
   if (uistate == ST_AMB_MOD_SEL)
   {
-    LCD_lighton();
-    Amb_on();
+    // LCD_lighton();
+    // Amb_on();
   }
 }
 
@@ -286,6 +299,26 @@ static void sw_longpress(void)
     uistate = ST_PROFILE_ADD;
     // 프로필 추가 요청
   }
-  // else
-  // uistate = ST_PROFILE_SEL;
+  else
+    uistate = ST_PROFILE_SEL;
+}
+
+static void profupdate(void)
+{
+  uint8 profidx;
+  Shared_Profile_t newprofile;
+  Amb_mode_e ambmode;
+  uint16 hue;
+
+  App_Manager_System_GetActiveProfileIndex(&profidx);
+  App_Manager_System_GetProfile(profidx, &newprofile);
+  Amb_getmode(&ambmode);
+  Amb_getHue(&hue);
+  hue >>= 1;
+  newprofile.ambient_light = (ambmode << 4 | hue);
+  newprofile.heater_on_threshold = Hvac_getHeatThreshold();
+  newprofile.ac_on_threshold = Hvac_getCoolThreshold();
+  App_Manager_System_SetProfile(profidx, &newprofile);
+
+  App_Scheduler_TableTxReq();
 }

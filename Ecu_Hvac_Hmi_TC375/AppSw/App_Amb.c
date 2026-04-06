@@ -36,6 +36,7 @@ void App_Ambient_changeColor(sint8 amount);
 void Amb_getmode(Amb_mode_e *mode);
 void Amb_off(void);
 void Amb_on(void);
+void Amb_getHue(uint16 *hue);
 
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
@@ -126,4 +127,9 @@ void Amb_off(void)
 void Amb_on(void)
 {
   basev = MAXVAL;
+}
+
+void Amb_getHue(uint16 *hue)
+{
+  *hue = (uint16)baseh;
 }

@@ -30,11 +30,8 @@
 // uint8 activatedProfileIndex = 0;
 // Shared_System_State_t systemState;
 
-static App_Manager_System_Input_t g_app_scheduler_system_input;
-static App_Manager_System_Output_t g_app_scheduler_system_output;
-
-static boolean g_tx_state_requested = FALSE;
-static boolean g_tx_temp_requested = FALSE;
+static uint32 g_app_scheduler_now_ms = 0u;
+static boolean g_tx_idx_requested = FALSE;
 static boolean g_app_scheduler_profile_table_tx_requested = FALSE;
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
@@ -45,10 +42,14 @@ static void App_Scheduler_Run_100ms(void);
 static void App_Scheduler_Run_1s(void);
 void App_Scheduler_Init(void);
 void App_Scheduler_Run(void);
+void App_Scheduler_IdxTxReq(void);
+void App_Scheduler_TableTxReq(void);
 
 /* CAN */
 static void App_Scheduler_Task_CanRx(void);
 static void App_Scheduler_Task_CanTx(void);
+
+static void App_Scheduler_Task_System(void);
 
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
@@ -59,15 +60,16 @@ static void App_Scheduler_Run_1ms(void)
 
 static void App_Scheduler_Run_10ms(void)
 {
+  App_Scheduler_Task_CanRx();
+  App_Scheduler_Task_System();
   App_Manager_UI_Run();
   App_Manager_Ambient_Run();
+  App_Scheduler_Task_CanTx();
 }
 
 static void App_Scheduler_Run_100ms(void)
 {
-  App_Scheduler_Task_CanRx();
   App_Manager_HVAC_Run();
-  App_Scheduler_Task_CanTx();
 }
 
 static void App_Scheduler_Run_1s(void)
@@ -79,6 +81,7 @@ void App_Scheduler_Init(void)
   Driver_Stm_Init();
   App_Manager_UI_Init();
   App_Manaver_HVAC_Init();
+  App_Manager_System_Init();
 }
 
 void App_Scheduler_Run(void)
@@ -115,23 +118,21 @@ static void App_Scheduler_Task_CanRx(void)
 {
   Shared_Can_Frame_t rx_frame;
 
-  App_Can_Service_ResetSystemInput(&g_app_scheduler_system_input);
-
   while (App_Can_Service_ReadFrame(&rx_frame) == TRUE)
   {
-    App_Can_Service_HandleRxFrame(&rx_frame,
-                                  &g_app_scheduler_system_input);
+    App_Can_Service_HandleRxFrame(&rx_frame);
   }
 }
 
 static void App_Scheduler_Task_CanTx(void)
 {
   Shared_Can_Frame_t tx_frame;
-
+  uint8 pf;
+  Shared_Profile_Table_t pft;
+  App_Manager_System_GetProfileTable(&pft);
   if (g_app_scheduler_profile_table_tx_requested == TRUE)
   {
-    if (App_Can_Service_BuildProfileTableFrame(&g_app_scheduler_system_output.profile_table,
-                                               &tx_frame) == TRUE)
+    if (App_Can_Service_BuildProfileTableFrame(&pft, &tx_frame) == TRUE)
     {
       (void)App_Can_Service_WriteFrame(&tx_frame);
       UART_Printf("[TX] SS_PROFILE_TABLE sent\r\n");
@@ -140,28 +141,29 @@ static void App_Scheduler_Task_CanTx(void)
     g_app_scheduler_profile_table_tx_requested = FALSE;
   }
 
-  if (g_tx_state_requested == TRUE)
+  if (g_tx_idx_requested == TRUE)
   {
-    if (App_Can_Service_BuildStateFrame(
-            (Shared_System_State_t)g_app_scheduler_system_output.current_state,
-            &tx_frame) == TRUE)
+    App_Manager_System_GetActiveProfileIndex(&pf);
+    if (App_Can_Service_BuildStateFrame(pf, &tx_frame) == TRUE)
     {
       (void)App_Can_Service_WriteFrame(&tx_frame);
-      UART_Printf("[TX] SS_STATE sent\r\n");
+      UART_Printf("[TX] HH_IDX sent\r\n");
     }
 
-    g_tx_state_requested = FALSE;
+    g_tx_idx_requested = FALSE;
   }
+}
 
-  if (g_tx_temp_requested == TRUE)
-  {
-    if (App_Can_Service_BuildTempFrame(g_app_scheduler_system_output.temperature,
-                                       &tx_frame) == TRUE)
-    {
-      (void)App_Can_Service_WriteFrame(&tx_frame);
-      UART_Printf("[TX] SS_TEMP sent\r\n");
-    }
+static void App_Scheduler_Task_System(void)
+{
+}
 
-    g_tx_temp_requested = FALSE;
-  }
+void App_Scheduler_IdxTxReq(void)
+{
+  g_tx_idx_requested = TRUE;
+}
+
+void App_Scheduler_TableTxReq(void)
+{
+  g_app_scheduler_profile_table_tx_requested = TRUE;
 }
