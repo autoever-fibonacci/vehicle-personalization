@@ -7,10 +7,12 @@
 #define AMB_MODE_E
 typedef enum
 {
+  AMB_OFF,
   AMB_CONSTANT,
   AMB_BREATH,
   AMB_WAVE_L,
-  AMB_WAVE_R
+  AMB_WAVE_R,
+  AMB_BLINK
 } Amb_mode_e;
 #endif
 

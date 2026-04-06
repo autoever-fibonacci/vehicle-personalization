@@ -53,6 +53,7 @@ void App_Manager_UI_Init(void)
   LCD_printString("Inited", LOWERLINE);
   Joystick_init();
   App_Manager_Ambient_Init();
+  Amb_on();
   uistate = ST_PROFILE_SEL;
   coolline[11] = 0xDF;
   heatline[11] = 0xDF;
@@ -130,6 +131,9 @@ void App_Manager_UI_Run(void)
     Amb_getmode(&ambmode);
     switch (ambmode)
     {
+    case AMB_OFF:
+      LCD_printString("+     Off      -", LOWERLINE);
+      break;
     case AMB_CONSTANT:
       LCD_printString("+   Constant   -", LOWERLINE);
       break;
@@ -180,6 +184,7 @@ static void joyutask()
     profupdate();
     break;
   case ST_AMB_MOD_SEL:
+    App_Ambient_Nextmode();
     App_Ambient_Nextmode();
     App_Ambient_Nextmode();
     App_Ambient_Nextmode();
