@@ -89,15 +89,14 @@ typedef struct
 
     uint8                  currentState;
     uint8                  prevState;
+    uint8                  lastHandledState;
     uint8                  activeProfileIdx;
 
     Shared_Profile_Table_t profileTable;
     App_Manager_Rfid_Output_t rfidOut;
 
-    boolean                setupRestoreIssued;
     boolean                shutdownSaveIssued;
     boolean                shutdownParkIssued;
-    boolean                emergencySeatIssued;
     boolean                rfidTransitionLatched;
 
     /* CAN TX request */
@@ -146,7 +145,9 @@ static void    App_ApplyProfileByIndex(uint8 profileIdx);
 static void    App_SaveCurrentPositionToActiveProfile(void);
 
 static void    App_HandleButtons1ms(void);
-static void    App_HandleState100ms(void);
+static void    App_HandleRfid10ms(void);
+static void    App_HandleStateEntry100ms(void);
+static void    App_HandleStateSteady100ms(void);
 static void    App_UpdateDebug(void);
 
 /* CAN placeholders */
@@ -302,10 +303,8 @@ static void App_InitDoor(void)
 
 static void App_OnStateChanged(uint8 newState)
 {
-    g_app.setupRestoreIssued  = FALSE;
     g_app.shutdownSaveIssued  = FALSE;
     g_app.shutdownParkIssued  = FALSE;
-    g_app.emergencySeatIssued = FALSE;
 
     if (newState == SHARED_SYSTEM_STATE_SLEEP)
     {
@@ -325,7 +324,6 @@ static void App_UpdateSystemState(uint8 newState)
     {
         g_app.prevState    = g_app.currentState;
         g_app.currentState = newState;
-        App_OnStateChanged(newState);
     }
 }
 
@@ -430,6 +428,30 @@ static void App_HandleButtons1ms(void)
     mm = PositionAxis_GetMode(&g_app.mirrorAxis);
     sm = PositionAxis_GetMode(&g_app.seatAxis);
 
+    switch (g_app.currentState)
+    {
+    case SHARED_SYSTEM_STATE_ACTIVATED:
+        break;
+
+    case SHARED_SYSTEM_STATE_SLEEP:
+    case SHARED_SYSTEM_STATE_SETUP:
+    case SHARED_SYSTEM_STATE_SHUTDOWN:
+    case SHARED_SYSTEM_STATE_DENIED:
+    case SHARED_SYSTEM_STATE_EMERGENCY:
+    default:
+        if ((mm == AXIS_MODE_JOG_POSITIVE) || (mm == AXIS_MODE_JOG_NEGATIVE))
+        {
+            PositionAxis_Stop(&g_app.mirrorAxis);
+        }
+
+        if ((sm == AXIS_MODE_JOG_POSITIVE) || (sm == AXIS_MODE_JOG_NEGATIVE))
+        {
+            PositionAxis_Stop(&g_app.seatAxis);
+        }
+
+        return;
+    }
+
     /* restore 중이면 jog 금지 */
     if ((mm == AXIS_MODE_RESTORE_TO_ZERO) || (mm == AXIS_MODE_RESTORE_TO_TARGET))
     {
@@ -481,9 +503,124 @@ static void App_HandleButtons1ms(void)
 
 
 /* -------------------------------------------------------------------------------------------------
- * State handling
+ * RFID / State handling
  * ------------------------------------------------------------------------------------------------- */
-static void App_HandleState100ms(void)
+static void App_HandleRfid10ms(void)
+{
+    App_Manager_Rfid_Run(nowMs, &in, &g_app.rfidOut);
+    uint32 nowMs = App_GetNowMs();
+    uint8 requestedProfileIdx;
+
+    switch (g_app.currentState)
+    {
+    case SHARED_SYSTEM_STATE_SLEEP:
+        switch (g_app.rfidOut.event)
+        {
+        case APP_MANAGER_RFID_EVENT_SUCCESS:
+            if (g_app.rfidOut.uid_idx >= SHARED_PROFILE_NORMAL_COUNT)
+            {
+                UART_Printf("[RFID] success invalid idx=%u\r\n", g_app.rfidOut.uid_idx);
+                break;
+            }
+
+            requestedProfileIdx = g_app.rfidOut.uid_idx;
+
+            if (g_app.rfidTransitionLatched == FALSE)
+            {
+                g_app.activeProfileIdx      = requestedProfileIdx;
+                g_app.txProfileIdxValue     = requestedProfileIdx;
+                g_app.txProfileIdxRequested = TRUE;
+                g_app.rfidTransitionLatched = TRUE;
+
+                UART_Printf("[RFID] auth idx=%u\r\n", requestedProfileIdx);
+            }
+            else
+            {
+                UART_Printf("[RFID] auth ignored (latched)\r\n");
+            }
+            break;
+
+        case APP_MANAGER_RFID_EVENT_FAIL:
+            UART_Printf("[RFID] fail st=%u\r\n", g_app.currentState);
+            break;
+
+        case APP_MANAGER_RFID_EVENT_LOCKOUT:
+            if (g_app.rfidTransitionLatched == FALSE)
+            {
+                g_app.txProfileIdxValue     = SHARED_PROFILE_INDEX_INVALID;
+                g_app.txProfileIdxRequested = TRUE;
+                g_app.rfidTransitionLatched = TRUE;
+
+                UART_Printf("[RFID] lockout -> denied req\r\n");
+            }
+            else
+            {
+                UART_Printf("[RFID] lockout ignored (latched)\r\n");
+            }
+            break;
+
+        case APP_MANAGER_RFID_EVENT_NONE:
+        default:
+            break;
+        }
+        break;
+
+    case SHARED_SYSTEM_STATE_ACTIVATED:
+        switch (g_app.rfidOut.event)
+        {
+        case APP_MANAGER_RFID_EVENT_SUCCESS:
+            if (g_app.rfidOut.uid_idx >= SHARED_PROFILE_NORMAL_COUNT)
+            {
+                UART_Printf("[RFID] success invalid idx=%u\r\n", g_app.rfidOut.uid_idx);
+                break;
+            }
+
+            requestedProfileIdx = g_app.rfidOut.uid_idx;
+
+            if (g_app.rfidTransitionLatched == FALSE)
+            {
+                g_app.txProfileIdxValue     = requestedProfileIdx;
+                g_app.txProfileIdxRequested = TRUE;
+                g_app.rfidTransitionLatched = TRUE;
+
+                UART_Printf("[RFID] shutdown req idx=%u\r\n", requestedProfileIdx);
+            }
+            else
+            {
+                UART_Printf("[RFID] shutdown ignored (latched)\r\n");
+            }
+            break;
+
+        case APP_MANAGER_RFID_EVENT_FAIL:
+            UART_Printf("[RFID] fail st=%u\r\n", g_app.currentState);
+            break;
+
+        case APP_MANAGER_RFID_EVENT_LOCKOUT:
+            UART_Printf("[RFID] lockout st=%u\r\n", g_app.currentState);
+            break;
+
+        case APP_MANAGER_RFID_EVENT_NONE:
+        default:
+            break;
+        }
+        break;
+
+    case SHARED_SYSTEM_STATE_SETUP:
+    case SHARED_SYSTEM_STATE_SHUTDOWN:
+    case SHARED_SYSTEM_STATE_DENIED:
+    case SHARED_SYSTEM_STATE_EMERGENCY:
+    default:
+        if (g_app.rfidOut.event != APP_MANAGER_RFID_EVENT_NONE)
+        {
+            UART_Printf("[RFID] event ignored st=%u ev=%u\r\n",
+                        g_app.currentState,
+                        g_app.rfidOut.event);
+        }
+        break;
+    }
+}
+
+static void App_HandleStateEntry100ms(void)
 {
     switch (g_app.currentState)
     {
@@ -493,27 +630,45 @@ static void App_HandleState100ms(void)
 
     case SHARED_SYSTEM_STATE_SETUP:
         DoorActuator_Open(&g_app.door);
-
-        if (g_app.setupRestoreIssued == FALSE)
-        {
-            App_ApplyProfileByIndex(g_app.activeProfileIdx);
-            g_app.setupRestoreIssued = TRUE;
-        }
+        App_ApplyProfileByIndex(g_app.activeProfileIdx);
         break;
 
     case SHARED_SYSTEM_STATE_ACTIVATED:
-        App_SaveCurrentPositionToActiveProfile();
-        App_ApplyProfileByIndex(g_app.activeProfileIdx);
         DoorActuator_Open(&g_app.door);
         break;
 
     case SHARED_SYSTEM_STATE_SHUTDOWN:
         DoorActuator_Close(&g_app.door);
+        break;
 
+    case SHARED_SYSTEM_STATE_DENIED:
+        DoorActuator_Close(&g_app.door);
+        break;
+
+    case SHARED_SYSTEM_STATE_EMERGENCY:
+    default:
+        DoorActuator_Open(&g_app.door);
+        PositionAxis_Stop(&g_app.seatAxis);
+        (void)PositionAxis_StartRestore(&g_app.seatAxis, SEAT_MIN_TICK);
+        break;
+    }
+}
+
+static void App_HandleStateSteady100ms(void)
+{
+    switch (g_app.currentState)
+    {
+    case SHARED_SYSTEM_STATE_ACTIVATED:
+        App_SaveCurrentPositionToActiveProfile();
+        break;
+
+    case SHARED_SYSTEM_STATE_SHUTDOWN:
         if (g_app.shutdownSaveIssued == FALSE)
         {
             /* TODO: 저장된 profile table CAN 송신 */
-            g_app.shutdownSaveIssued = TRUE;
+            App_SaveCurrentPositionToActiveProfile();
+            g_app.txProfileTableRequested = TRUE;
+            g_app.shutdownSaveIssued      = TRUE;
             break;
         }
 
@@ -529,20 +684,11 @@ static void App_HandleState100ms(void)
         }
         break;
 
+    case SHARED_SYSTEM_STATE_SLEEP:
+    case SHARED_SYSTEM_STATE_SETUP:
     case SHARED_SYSTEM_STATE_DENIED:
-        DoorActuator_Close(&g_app.door);
-        break;
-
     case SHARED_SYSTEM_STATE_EMERGENCY:
     default:
-        DoorActuator_Open(&g_app.door);
-
-        if (g_app.emergencySeatIssued == FALSE)
-        {
-            PositionAxis_Stop(&g_app.seatAxis);
-            (void)PositionAxis_StartRestore(&g_app.seatAxis, SEAT_MIN_TICK);
-            g_app.emergencySeatIssued = TRUE;
-        }
         break;
     }
 }
@@ -585,6 +731,7 @@ void App_Init(void)
 
     g_app.currentState          = SHARED_SYSTEM_STATE_SLEEP;
     g_app.prevState             = SHARED_SYSTEM_STATE_SLEEP;
+    g_app.lastHandledState      = 0xFFU;
     g_app.activeProfileIdx      = SHARED_PROFILE_INDEX_INVALID;
     g_app.rfidTransitionLatched = FALSE;
 
@@ -598,8 +745,6 @@ void App_Init(void)
 
     App_Manager_Rfid_Init(nowMs);
     App_Manager_Rfid_Run(nowMs, &rfidIn, &g_app.rfidOut);
-
-    App_OnStateChanged(g_app.currentState);
 
     UART_Printf("[APP] init done\r\n");
 }
@@ -618,92 +763,24 @@ void AppTask1ms(void)
 void AppTask10ms(void)
 {
     App_Manager_Rfid_Input_t in;
-    uint32 nowMs = App_GetNowMs();
-    uint8  requestedProfileIdx;
 
     in.register_flag = FALSE;
     in.profile_table = &g_app.profileTable;
 
-    App_Manager_Rfid_Run(nowMs, &in, &g_app.rfidOut);
-
-    if (g_app.rfidOut.event == APP_MANAGER_RFID_EVENT_SUCCESS)
-    {
-        if (g_app.rfidOut.uid_idx >= SHARED_PROFILE_NORMAL_COUNT)
-        {
-            UART_Printf("[RFID] success invalid idx=%u\r\n", g_app.rfidOut.uid_idx);
-        }
-        else if (g_app.currentState == SHARED_SYSTEM_STATE_SLEEP)
-        {
-            requestedProfileIdx = g_app.rfidOut.uid_idx;
-
-            if (g_app.rfidTransitionLatched == FALSE)
-            {
-                g_app.activeProfileIdx      = requestedProfileIdx;
-                g_app.txProfileIdxValue     = requestedProfileIdx;
-                g_app.txProfileIdxRequested = TRUE;
-                g_app.rfidTransitionLatched = TRUE;
-
-                UART_Printf("[RFID] auth idx=%u\r\n", requestedProfileIdx);
-            }
-            else
-            {
-                UART_Printf("[RFID] auth ignored (latched)\r\n");
-            }
-        }
-        else if (g_app.currentState == SHARED_SYSTEM_STATE_ACTIVATED)
-        {
-            requestedProfileIdx = g_app.rfidOut.uid_idx;
-
-            if (g_app.rfidTransitionLatched == FALSE)
-            {
-                g_app.txProfileIdxValue     = requestedProfileIdx;
-                g_app.txProfileIdxRequested = TRUE;
-                g_app.rfidTransitionLatched = TRUE;
-
-                UART_Printf("[RFID] shutdown req idx=%u\r\n", requestedProfileIdx);
-            }
-            else
-            {
-                UART_Printf("[RFID] shutdown ignored (latched)\r\n");
-            }
-        }
-        else
-        {
-            UART_Printf("[RFID] success ignored st=%u\r\n", g_app.currentState);
-        }
-    }
-    else if (g_app.rfidOut.event == APP_MANAGER_RFID_EVENT_FAIL)
-    {
-        UART_Printf("[RFID] fail st=%u\r\n", g_app.currentState);
-    }
-    else if (g_app.rfidOut.event == APP_MANAGER_RFID_EVENT_LOCKOUT)
-    {
-        if (g_app.currentState == SHARED_SYSTEM_STATE_SLEEP)
-        {
-            if (g_app.rfidTransitionLatched == FALSE)
-            {
-                g_app.txProfileIdxValue     = SHARED_PROFILE_INDEX_INVALID;
-                g_app.txProfileIdxRequested = TRUE;
-                g_app.rfidTransitionLatched = TRUE;
-
-                UART_Printf("[RFID] lockout -> denied req\r\n");
-            }
-            else
-            {
-                UART_Printf("[RFID] lockout ignored (latched)\r\n");
-            }
-        }
-        else
-        {
-            UART_Printf("[RFID] lockout st=%u\r\n", g_app.currentState);
-        }
-    }
+    App_HandleRfid10ms();
     App_HandleCanTx10ms();
 }
 
 void AppTask100ms(void)
 {
-    App_HandleState100ms();
+    if (g_app.currentState != g_app.lastHandledState)
+    {
+        App_OnStateChanged(g_app.currentState);
+        App_HandleStateEntry100ms();
+        g_app.lastHandledState = g_app.currentState;
+    }
+
+    App_HandleStateSteady100ms();
 }
 
 void AppTask1000ms(void)
@@ -799,12 +876,20 @@ static void App_HandleCanRx1ms(void)
                          sizeof(profile_table_msg));
 
             /* 프로필 테이블 저장: 모터 값 이외의 것들만 갱신 */
-            g_app.profileTable.profile[g_app.activeProfileIdx].ac_on_threshold
-                            = profile_table_msg.profile[g_app.activeProfileIdx].ac_on_threshold;
-            g_app.profileTable.profile[g_app.activeProfileIdx].heater_on_threshold
-                            = profile_table_msg.profile[g_app.activeProfileIdx].heater_on_threshold;
-            g_app.profileTable.profile[g_app.activeProfileIdx].ambient_light       
-                            = profile_table_msg.profile[g_app.activeProfileIdx].ambient_light;
+            if (g_app.activeProfileIdx < SHARED_PROFILE_TOTAL_COUNT)
+            {
+                g_app.profileTable.profile[g_app.activeProfileIdx].ac_on_threshold
+                                = profile_table_msg.profile[g_app.activeProfileIdx].ac_on_threshold;
+                g_app.profileTable.profile[g_app.activeProfileIdx].heater_on_threshold
+                                = profile_table_msg.profile[g_app.activeProfileIdx].heater_on_threshold;
+                g_app.profileTable.profile[g_app.activeProfileIdx].ambient_light
+                                = profile_table_msg.profile[g_app.activeProfileIdx].ambient_light;
+            }
+            else
+            {
+                UART_Printf("[RX] PROFILE_TABLE ignored invalid active idx=%u\r\n",
+                            g_app.activeProfileIdx);
+            }
 
             if (rx_id == SHARED_CAN_MSG_ID_SS_PROFILE_TABLE)
             {
@@ -827,10 +912,19 @@ static void App_HandleCanRx1ms(void)
                          sizeof(profile_idx_msg));
 
             /* HH에서 선택한 프로필 인덱스 반영 */
-            g_app.activeProfileIdx = profile_idx_msg.profile_index;
+            if ((profile_idx_msg.profile_index < SHARED_PROFILE_TOTAL_COUNT) ||
+                (profile_idx_msg.profile_index == SHARED_PROFILE_INDEX_INVALID))
+            {
+                g_app.activeProfileIdx = profile_idx_msg.profile_index;
 
-            UART_Printf("[RX] HH_PROFILE_IDX profile_index=%u\r\n",
-                        profile_idx_msg.profile_index);
+                UART_Printf("[RX] HH_PROFILE_IDX profile_index=%u\r\n",
+                            profile_idx_msg.profile_index);
+            }
+            else
+            {
+                UART_Printf("[RX] HH_PROFILE_IDX ignored invalid idx=%u\r\n",
+                            profile_idx_msg.profile_index);
+            }
             break;
         }
 
