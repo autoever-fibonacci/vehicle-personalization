@@ -785,20 +785,20 @@ void AppTask100ms(void)
 
 void AppTask1000ms(void)
 {
-    /*UART_Printf("[DBG] st=%u prev=%u prof=%u seat=%ld mirror=%ld door=%d\r\n",
+    UART_Printf("[DBG] st=%u prev=%u prof=%u seat=%ld mirror=%ld door=%d\r\n",
                 g_app.currentState,
                 g_app.prevState,
                 g_app.activeProfileIdx,
                 (long)PositionAxis_GetTick(&g_app.seatAxis),
                 (long)PositionAxis_GetTick(&g_app.mirrorAxis),
-                (int)DoorActuator_GetState(&g_app.door));*/
+                (int)DoorActuator_GetState(&g_app.door));
 
     /* TODO:
      * 주기 CAN task 자리
      * - heartbeat
      * - profile table periodic tx
      */
-    //g_app.txProfileTableRequested = TRUE;
+    g_app.txProfileTableRequested = TRUE;
 }
 
 void AppScheduling(void)
@@ -891,14 +891,6 @@ static void App_HandleCanRx1ms(void)
                             g_app.activeProfileIdx);
             }
 
-            if (rx_id == SHARED_CAN_MSG_ID_SS_PROFILE_TABLE)
-            {
-                UART_Printf("[RX] SS_PROFILE_TABLE received\r\n");
-            }
-            else
-            {
-                UART_Printf("[RX] HH_PROFILE_TABLE received\r\n");
-            }
             break;
         }
 
@@ -1016,15 +1008,6 @@ static boolean App_PollProfileTableAtInit(uint32 timeout_ms)
                 (void)memcpy(&g_app.profileTable,
                              &profile_table_msg,
                              sizeof(Shared_Profile_Table_t));
-
-                if (rx_id == SHARED_CAN_MSG_ID_SS_PROFILE_TABLE)
-                {
-                    UART_Printf("[INIT][RX] SS_PROFILE_TABLE received\r\n");
-                }
-                else
-                {
-                    UART_Printf("[INIT][RX] HH_PROFILE_TABLE received\r\n");
-                }
 
                 return TRUE;
             }
