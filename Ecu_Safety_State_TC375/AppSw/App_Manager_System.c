@@ -1,8 +1,24 @@
 #include "App_Manager_System.h"
+
+/*********************************************************************************************************************/
+/*------------------------------------------------------Macros-------------------------------------------------------*/
+/*********************************************************************************************************************/
+/* 필요하면 여기 매크로 추가 */
+
+/*********************************************************************************************************************/
+/*-----------------------------------------------------Includes------------------------------------------------------*/
+/*********************************************************************************************************************/
+#include <string.h>
+
+#include "App_Can_Service.h"
 #include "Platform_Types.h"
 #include "Ifx_Types.h"
 #include "Base_Fee.h"
+#include "UART_Config.h"
 
+/*********************************************************************************************************************/
+/*------------------------------------------------Type Definitions--------------------------------------------------*/
+/*********************************************************************************************************************/
 typedef struct
 {
     Shared_System_State_t  current_state;
@@ -13,26 +29,36 @@ typedef struct
     Shared_Profile_Table_t profile_table;
 } App_Manager_System_Context_t;
 
-static App_Manager_System_Context_t g_app_manager_system_context;
-
+/*********************************************************************************************************************/
+/*------------------------------------------------Function Prototypes------------------------------------------------*/
+/*********************************************************************************************************************/
+/* public-like local helpers */
 static void    App_Manager_System_ResetOutput(App_Manager_System_Output_t *output);
 static void    App_Manager_System_SetState(Shared_System_State_t next_state, uint32 now_ms);
+
+/* state / condition check */
 static boolean App_Manager_System_IsNormalProfileIndex(uint8 profile_index);
 static boolean App_Manager_System_IsEmergencyRequired(sint16 temperature_x10);
 static boolean App_Manager_System_IsEmergencyClear(sint16 temperature_x10);
+static uint32  App_Manager_System_GetElapsed(uint32 now_ms, uint32 base_ms);
+static sint8   App_Manager_System_ConvertTemperatureToTxValue(sint16 temperature_x10);
+
+/* profile table */
 static void    App_Manager_System_CopyProfileTable(Shared_Profile_Table_t *dst,
                                                    const Shared_Profile_Table_t *src);
 static void    App_Manager_System_ClearProfileTable(Shared_Profile_Table_t *table);
-static uint32  App_Manager_System_GetElapsed(uint32 now_ms, uint32 base_ms);
-static sint8   App_Manager_System_ConvertTemperatureToTxValue(sint16 temperature_x10);
 static void    App_Manager_System_LoadProfileTableFromDFlash(Shared_Profile_Table_t *profile_table);
 static void    App_Manager_System_SaveProfileTableToDFlash(const Shared_Profile_Table_t *profile_table);
+static void    App_Manager_System_LoadDummyProfileTable(Shared_Profile_Table_t *profile_table);
 
-/*
- * Optional external hook
- * - CAN RX task can call this when a profile table message is received.
- * - Add prototype to App_Manager_System.h if you want to use it outside this file.
- */
+/*********************************************************************************************************************/
+/*------------------------------------------------Static Variables---------------------------------------------------*/
+/*********************************************************************************************************************/
+static App_Manager_System_Context_t g_app_manager_system_context;
+
+/*********************************************************************************************************************/
+/*------------------------------------------------Functions----------------------------------------------------------*/
+/*********************************************************************************************************************/
 void App_Manager_System_UpdateProfileTable(const Shared_Profile_Table_t *profile_table)
 {
     if (profile_table == NULL_PTR)
@@ -44,11 +70,6 @@ void App_Manager_System_UpdateProfileTable(const Shared_Profile_Table_t *profile
                                         profile_table);
 }
 
-/*
- * Optional external hook
- * - Useful if another module wants a snapshot of the current RAM table.
- * - Add prototype to App_Manager_System.h if needed.
- */
 void App_Manager_System_GetProfileTable(Shared_Profile_Table_t *profile_table)
 {
     if (profile_table == NULL_PTR)
@@ -62,13 +83,21 @@ void App_Manager_System_GetProfileTable(Shared_Profile_Table_t *profile_table)
 
 void App_Manager_System_Init(void)
 {
-    g_app_manager_system_context.current_state        = SHARED_SYSTEM_STATE_SLEEP;
-    g_app_manager_system_context.state_enter_time_ms  = 0U;
-    g_app_manager_system_context.active_profile_index = SHARED_PROFILE_INDEX_INVALID;
-    g_app_manager_system_context.last_temperature_x10 = 0;
-    g_app_manager_system_context.setup_profile_loaded = FALSE;
+    g_app_manager_system_context.current_state         = SHARED_SYSTEM_STATE_SLEEP;
+    g_app_manager_system_context.state_enter_time_ms   = 0U;
+    g_app_manager_system_context.active_profile_index  = SHARED_PROFILE_INDEX_INVALID;
+    g_app_manager_system_context.last_temperature_x10  = 0;
+    g_app_manager_system_context.setup_profile_loaded  = FALSE;
 
     App_Manager_System_ClearProfileTable(&g_app_manager_system_context.profile_table);
+
+    if (g_app_manager_system_context.setup_profile_loaded == FALSE)
+    {
+        App_Manager_System_LoadProfileTableFromDFlash(
+            &g_app_manager_system_context.profile_table);
+
+        g_app_manager_system_context.setup_profile_loaded = TRUE;
+    }
 }
 
 void App_Manager_System_Run(uint32 now_ms,
@@ -104,10 +133,6 @@ void App_Manager_System_Run(uint32 now_ms,
                 /* ignore invalid value */
             }
         }
-        else
-        {
-            /* keep state */
-        }
         break;
 
     case SHARED_SYSTEM_STATE_SETUP:
@@ -116,26 +141,11 @@ void App_Manager_System_Run(uint32 now_ms,
             g_app_manager_system_context.active_profile_index = SHARED_PROFILE_INDEX_EMERGENCY;
             App_Manager_System_SetState(SHARED_SYSTEM_STATE_EMERGENCY, now_ms);
         }
-
-        // DFLASH에서 프로필 테이블 로드
-        else if (g_app_manager_system_context.setup_profile_loaded == FALSE)
-        {
-            App_Manager_System_LoadProfileTableFromDFlash(
-                &g_app_manager_system_context.profile_table);
-
-            g_app_manager_system_context.setup_profile_loaded = TRUE;
-        }
-
-        // 일정 시간 대기 후 전이
         else if (App_Manager_System_GetElapsed(now_ms,
                                                g_app_manager_system_context.state_enter_time_ms) >=
                  APP_MANAGER_SYSTEM_SETUP_HOLD_MS)
         {
             App_Manager_System_SetState(SHARED_SYSTEM_STATE_ACTIVATED, now_ms);
-        }
-        else
-        {
-            /* keep state */
         }
         break;
 
@@ -149,10 +159,6 @@ void App_Manager_System_Run(uint32 now_ms,
         {
             g_app_manager_system_context.active_profile_index = SHARED_PROFILE_INDEX_EMERGENCY;
             App_Manager_System_SetState(SHARED_SYSTEM_STATE_EMERGENCY, now_ms);
-        }
-        else
-        {
-            /* keep state */
         }
         break;
 
@@ -170,13 +176,9 @@ void App_Manager_System_Run(uint32 now_ms,
 
         if (App_Manager_System_GetElapsed(now_ms,
                                           g_app_manager_system_context.state_enter_time_ms) >=
-                 APP_MANAGER_SYSTEM_DENIED_TIMEOUT_MS)
+            APP_MANAGER_SYSTEM_DENIED_TIMEOUT_MS)
         {
             App_Manager_System_SetState(SHARED_SYSTEM_STATE_SLEEP, now_ms);
-        }
-        else
-        {
-            /* keep state */
         }
         break;
 
@@ -187,10 +189,6 @@ void App_Manager_System_Run(uint32 now_ms,
         {
             g_app_manager_system_context.active_profile_index = SHARED_PROFILE_INDEX_INVALID;
             App_Manager_System_SetState(SHARED_SYSTEM_STATE_SLEEP, now_ms);
-        }
-        else
-        {
-            /* keep state */
         }
         break;
 
@@ -213,6 +211,9 @@ uint8 App_Manager_System_GetActiveProfileIndex(void)
     return g_app_manager_system_context.active_profile_index;
 }
 
+/*********************************************************************************************************************/
+/*---------------------------------------------State Helper Functions------------------------------------------------*/
+/*********************************************************************************************************************/
 static void App_Manager_System_ResetOutput(App_Manager_System_Output_t *output)
 {
     output->current_state        = (uint8)g_app_manager_system_context.current_state;
@@ -228,8 +229,7 @@ static void App_Manager_System_SetState(Shared_System_State_t next_state, uint32
     if (g_app_manager_system_context.current_state != next_state)
     {
         g_app_manager_system_context.current_state        = next_state;
-        g_app_manager_system_context.state_enter_time_ms  = now_ms;
-        g_app_manager_system_context.setup_profile_loaded = FALSE;
+        g_app_manager_system_context.state_enter_time_ms = now_ms;
     }
 }
 
@@ -264,6 +264,30 @@ static boolean App_Manager_System_IsEmergencyClear(sint16 temperature_x10)
     return FALSE;
 }
 
+static uint32 App_Manager_System_GetElapsed(uint32 now_ms, uint32 base_ms)
+{
+    return (now_ms - base_ms);
+}
+
+static sint8 App_Manager_System_ConvertTemperatureToTxValue(sint16 temperature_x10)
+{
+    sint16 temp_c = temperature_x10 / 10;
+
+    if (temp_c > 127)
+    {
+        temp_c = 127;
+    }
+    else if (temp_c < -128)
+    {
+        temp_c = -128;
+    }
+
+    return (sint8)temp_c;
+}
+
+/*********************************************************************************************************************/
+/*-------------------------------------------Profile Table Functions-------------------------------------------------*/
+/*********************************************************************************************************************/
 static void App_Manager_System_CopyProfileTable(Shared_Profile_Table_t *dst,
                                                 const Shared_Profile_Table_t *src)
 {
@@ -300,49 +324,71 @@ static void App_Manager_System_ClearProfileTable(Shared_Profile_Table_t *table)
     }
 }
 
-static uint32 App_Manager_System_GetElapsed(uint32 now_ms, uint32 base_ms)
-{
-    return (now_ms - base_ms);
-}
-
-static sint8 App_Manager_System_ConvertTemperatureToTxValue(sint16 temperature_x10)
-{
-    sint16 temp_c;
-
-    temp_c = temperature_x10 / 10;
-
-    if (temp_c > 127)
-    {
-        temp_c = 127;
-    }
-    else if (temp_c < -128)
-    {
-        temp_c = -128;
-    }
-    else
-    {
-        /* do nothing */
-    }
-
-    return (sint8)temp_c;
-}
-
+/*********************************************************************************************************************/
+/*----------------------------------------------DFlash Functions-----------------------------------------------------*/
+/*********************************************************************************************************************/
 static void App_Manager_System_LoadProfileTableFromDFlash(Shared_Profile_Table_t *profile_table)
 {
     (void)profile_table;
 
-    /* TODO:
-     * Load stored profile table from DFlash.
-     */
-    Flash_LoadProfileTable(profile_table);
+    /* TODO: DFlash load */
+    App_Manager_System_LoadDummyProfileTable(profile_table);
 }
 
 static void App_Manager_System_SaveProfileTableToDFlash(const Shared_Profile_Table_t *profile_table)
 {
     (void)profile_table;
 
-    /* TODO:
-     * Save current profile table to DFlash.
-     */
+    /* TODO: DFlash save */
     Flash_SaveProfileTable(profile_table);
+}
+
+/*********************************************************************************************************************/
+/*----------------------------------------------Dummy Functions------------------------------------------------------*/
+/*********************************************************************************************************************/
+static void App_Manager_System_LoadDummyProfileTable(Shared_Profile_Table_t *profile_table)
+{
+    if (profile_table == NULL_PTR)
+    {
+        return;
+    }
+
+    (void)memset(profile_table, 0, sizeof(Shared_Profile_Table_t));
+
+    profile_table->profile[SHARED_PROFILE_INDEX_0].profile_id          = 1000U;
+    profile_table->profile[SHARED_PROFILE_INDEX_0].side_motor_angle    = 20U;
+    profile_table->profile[SHARED_PROFILE_INDEX_0].seat_motor_angle    = 110U;
+    profile_table->profile[SHARED_PROFILE_INDEX_0].ambient_light       = 100U;
+    profile_table->profile[SHARED_PROFILE_INDEX_0].ac_on_threshold     = 26;
+    profile_table->profile[SHARED_PROFILE_INDEX_0].heater_on_threshold = 18;
+
+    profile_table->profile[SHARED_PROFILE_INDEX_1].profile_id          = 1001U;
+    profile_table->profile[SHARED_PROFILE_INDEX_1].side_motor_angle    = 60U;
+    profile_table->profile[SHARED_PROFILE_INDEX_1].seat_motor_angle    = 140U;
+    profile_table->profile[SHARED_PROFILE_INDEX_1].ambient_light       = 300U;
+    profile_table->profile[SHARED_PROFILE_INDEX_1].ac_on_threshold     = 24;
+    profile_table->profile[SHARED_PROFILE_INDEX_1].heater_on_threshold = 20;
+
+    profile_table->profile[SHARED_PROFILE_INDEX_2].profile_id          = 1002U;
+    profile_table->profile[SHARED_PROFILE_INDEX_2].side_motor_angle    = 100U;
+    profile_table->profile[SHARED_PROFILE_INDEX_2].seat_motor_angle    = 170U;
+    profile_table->profile[SHARED_PROFILE_INDEX_2].ambient_light       = 500U;
+    profile_table->profile[SHARED_PROFILE_INDEX_2].ac_on_threshold     = 22;
+    profile_table->profile[SHARED_PROFILE_INDEX_2].heater_on_threshold = 21;
+
+    profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].profile_id          = 9000U;
+    profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].side_motor_angle    = 30U;
+    profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].seat_motor_angle    = 128U;
+    profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].ambient_light       = 200U;
+    profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].ac_on_threshold     = 25;
+    profile_table->profile[SHARED_PROFILE_INDEX_DEFAULT].heater_on_threshold = 19;
+
+    profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].profile_id          = 9999U;
+    profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].side_motor_angle    = 0U;
+    profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].seat_motor_angle    = 0U;
+    profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].ambient_light       = 0U;
+    profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].ac_on_threshold     = 30;
+    profile_table->profile[SHARED_PROFILE_INDEX_EMERGENCY].heater_on_threshold = 15;
+
+    UART_Printf("[SYSTEM] dummy profile table loaded\r\n");
 }
