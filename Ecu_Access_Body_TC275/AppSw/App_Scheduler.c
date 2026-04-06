@@ -507,8 +507,9 @@ static void App_HandleButtons1ms(void)
  * ------------------------------------------------------------------------------------------------- */
 static void App_HandleRfid10ms(void)
 {
-    App_Manager_Rfid_Run(nowMs, &in, &g_app.rfidOut);
     uint32 nowMs = App_GetNowMs();
+    App_Manager_Rfid_Run(nowMs, &in, &g_app.rfidOut);
+    
     uint8 requestedProfileIdx;
 
     switch (g_app.currentState)
@@ -757,6 +758,7 @@ void AppTask1ms(void)
     PositionAxis_Task1ms(&g_app.seatAxis);
 
     App_HandleButtons1ms();
+    App_HandleRfid10ms();
     App_UpdateDebug();
 }
 
@@ -767,7 +769,6 @@ void AppTask10ms(void)
     in.register_flag = FALSE;
     in.profile_table = &g_app.profileTable;
 
-    App_HandleRfid10ms();
     App_HandleCanTx10ms();
 }
 
