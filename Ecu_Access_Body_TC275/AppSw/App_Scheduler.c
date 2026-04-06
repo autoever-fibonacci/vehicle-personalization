@@ -145,6 +145,7 @@ static void    App_UpdateDebug(void);
 /* CAN placeholders */
 static void    App_HandleCanRx1ms(void);
 static void    App_HandleCanTx10ms(void);
+static boolean App_PollProfileTableAtInit(uint32 timeout_ms);
 
 /* -------------------------------------------------------------------------------------------------
  * Helpers
@@ -152,7 +153,7 @@ static void    App_HandleCanTx10ms(void);
 static uint32 App_GetNowMs(void)
 {
     uint32 tickPerMs = IfxStm_getTicksFromMilliseconds(BSP_DEFAULT_TIMER, 1U);
-    uint32 stmTick   = IfxStm_get(BSP_DEFAULT_TIMER);
+    uint64 stmTick   = IfxStm_get(BSP_DEFAULT_TIMER);
 
     if (tickPerMs == 0U)
     {
@@ -458,96 +459,7 @@ static void App_HandleButtons1ms(void)
     }
 }
 
-/* -------------------------------------------------------------------------------------------------
- * CAN placeholders
- * ------------------------------------------------------------------------------------------------- */
-static void App_HandleCanRx1ms(void)
-{
-    uint32 rx_data[MAXIMUM_CAN_DATA_PAYLOAD];
-    uint32 rx_id;
 
-    if (receiveCanMessage(rx_data) == FALSE)
-    {
-        return;
-    }
-
-    rx_id = g_multican.rxMsg.id;
-
-    switch (rx_id)
-    {
-        case SHARED_CAN_MSG_ID_SS_STATE:
-        {
-            Shared_Can_State_t state_msg;
-
-            (void)memset(&state_msg, 0, sizeof(Shared_Can_State_t));
-            (void)memcpy(&state_msg,
-                         (const uint8 *)rx_data,
-                         sizeof(Shared_Can_State_t));
-
-            // 상태 변경
-            g_app.currentState = state_msg.current_state;
-
-            UART_Printf("[RX] SS_STATE current_state=%u\r\n",
-                        state_msg.current_state);
-            break;
-        }
-
-        case SHARED_CAN_MSG_ID_SS_PROFILE_TABLE:
-        {
-            Shared_Profile_Table_t profile_table_msg;
-
-            (void)memset(&profile_table_msg, 0, sizeof(Shared_Profile_Table_t));
-            (void)memcpy(&profile_table_msg,
-                         (const uint8 *)rx_data,
-                         sizeof(Shared_Profile_Table_t));
-
-            // 프로필 테이블 저장
-            /*memset(&g_app.profileTable,
-                   (const uint8 *)profile_table_msg.profile,
-                   sizeof(Shared_Profile_Table_t));*/
-
-
-            UART_Printf("[RX] SS_PROFILE_TABLE received\r\n");
-            break;
-        }
-
-        default:
-        {
-            break;
-        }
-    }
-}
-
-static void App_HandleCanTx10ms(void)
-{
-    uint32 tx_data[MAXIMUM_CAN_DATA_PAYLOAD];
-
-    if ((g_app.rfidOut.event == APP_MANAGER_RFID_EVENT_SUCCESS) &&
-        (g_app.rfidOut.uid_valid == TRUE))
-    {
-        (void)memset(tx_data, 0, sizeof(tx_data));
-
-        ((uint8 *)tx_data)[0] = g_app.rfidOut.uid_idx;
-
-        transmitCanMessage(SHARED_CAN_MSG_ID_AB_ACCESS_IDX, tx_data);
-
-        UART_Printf("[TX] AB_ACCESS_IDX uid_idx=%u\r\n",
-                    g_app.rfidOut.uid_idx);
-    }
-
-    /*
-     * PROFILE_TABLE 송신은 "이 함수 안에 바로 쓸 수 있는 로컬 테이블 원본"이
-     * 현재 스니펫에 없어서 일단 보류
-     *
-     * 나중에 테이블 원본 변수만 정해지면 아래 형태로 바로 추가:
-     *
-     * (void)memset(tx_data, 0, sizeof(tx_data));
-     * (void)memcpy((uint8 *)tx_data,
-     *              &your_profile_table,
-     *              sizeof(Shared_Profile_Table_t));
-     * transmitCanMessage(SHARED_CAN_MSG_ID_AB_PROFILE_TABLE, tx_data);
-     */
-}
 
 /* -------------------------------------------------------------------------------------------------
  * State handling
@@ -639,6 +551,7 @@ static void App_UpdateDebug(void)
 void App_Init(void)
 {
     App_Manager_Rfid_Input_t rfidIn;
+    uint32 nowMs;
 
     (void)memset(&g_app, 0, sizeof(g_app));
 
@@ -650,17 +563,20 @@ void App_Init(void)
 
     initMultican();
 
-    rfidIn.enable_flag   = FALSE;
-    rfidIn.register_flag = FALSE;
-
-    uint32 nowMs = App_GetNowMs();
-
-    App_Manager_Rfid_Init(nowMs);
-    App_Manager_Rfid_Run(nowMs, &rfidIn, &g_app.rfidOut);
-
     g_app.currentState     = SHARED_SYSTEM_STATE_SLEEP;
     g_app.prevState        = SHARED_SYSTEM_STATE_SLEEP;
     g_app.activeProfileIdx = SHARED_PROFILE_INDEX_DEFAULT;
+
+    /* 초기화 시점에 SS_PROFILE_TABLE 1회 수신 시도, 20초 타임아웃 */
+    (void)App_PollProfileTableAtInit(20000U);
+
+    rfidIn.enable_flag   = FALSE;
+    rfidIn.register_flag = FALSE;
+
+    nowMs = App_GetNowMs();
+
+    App_Manager_Rfid_Init(nowMs);
+    App_Manager_Rfid_Run(nowMs, &rfidIn, &g_app.rfidOut);
 
     App_OnStateChanged(g_app.currentState);
 
@@ -700,15 +616,11 @@ void AppTask10ms(void)
             g_app.activeProfileIdx = SHARED_PROFILE_INDEX_DEFAULT;
         }
 
-        // ★ TEST ONLY: 추후 수정해야 함
-        g_app.currentState = (g_app.currentState == SHARED_SYSTEM_STATE_ACTIVATED) ? SHARED_SYSTEM_STATE_SLEEP : SHARED_SYSTEM_STATE_ACTIVATED;
-        //g_app.currentState = SHARED_SYSTEM_STATE_SETUP;
+        UART_Printf("[RFID] success idx=%d\r\n",
+                    g_app.activeProfileIdx);
 
-        UART_Printf("[RFID] success idx=%d st=%u\r\n",
-                    g_app.activeProfileIdx,
-                    g_app.currentState);
-
-        /* TODO: ACCESS_IDX CAN 송신 */
+        /* 상태 전이는 여기서 하지 않음 */
+        /* TODO: AB_PROFILE_IDX CAN 송신 */
     }
     else if (g_app.rfidOut.event == APP_MANAGER_RFID_EVENT_FAIL)
     {
@@ -769,4 +681,209 @@ void AppScheduling(void)
         stSchedulingInfo.u8nuScheduling1000msFlag = 0U;
         AppTask1000ms();
     }
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * CAN RX
+ * - 단일 RX object에서 받은 메시지를 상위에서 ID 기준으로 파싱
+ * ------------------------------------------------------------------------------------------------- */
+static void App_HandleCanRx1ms(void)
+{
+    uint32       rx_data[MAXIMUM_CAN_DATA_PAYLOAD];
+    uint32       rx_id;
+    const uint8 *rx_bytes;
+
+    if (receiveCanMessage(rx_data) == FALSE)
+    {
+        return;
+    }
+
+    rx_id    = g_multican.rxMsg.id;
+    rx_bytes = (const uint8 *)rx_data;
+
+    switch (rx_id)
+    {
+        case SHARED_CAN_MSG_ID_SS_STATE:
+        {
+            Shared_Can_State_t state_msg;
+
+            (void)memset(&state_msg, 0, sizeof(state_msg));
+            (void)memcpy(&state_msg,
+                         rx_bytes,
+                         sizeof(state_msg));
+
+            /* SS 시스템 상태 반영 */
+            g_app.currentState = state_msg.current_state;
+
+            UART_Printf("[RX] SS_STATE current_state=%u\r\n",
+                        state_msg.current_state);
+            break;
+        }
+
+        case SHARED_CAN_MSG_ID_SS_PROFILE_TABLE:
+        case SHARED_CAN_MSG_ID_HH_PROFILE_TABLE:
+        {
+            Shared_Profile_Table_t profile_table_msg;
+
+            (void)memset(&profile_table_msg, 0, sizeof(profile_table_msg));
+            (void)memcpy(&profile_table_msg,
+                         rx_bytes,
+                         sizeof(profile_table_msg));
+
+            /* 프로필 테이블 저장 */
+            (void)memcpy(&g_app.profileTable,
+                         &profile_table_msg,
+                         sizeof(Shared_Profile_Table_t));
+
+            if (rx_id == SHARED_CAN_MSG_ID_SS_PROFILE_TABLE)
+            {
+                UART_Printf("[RX] SS_PROFILE_TABLE received\r\n");
+            }
+            else
+            {
+                UART_Printf("[RX] HH_PROFILE_TABLE received\r\n");
+            }
+            break;
+        }
+
+        case SHARED_CAN_MSG_ID_HH_PROFILE_IDX:
+        {
+            Shared_Can_Profile_Idx_t profile_idx_msg;
+
+            (void)memset(&profile_idx_msg, 0, sizeof(profile_idx_msg));
+            (void)memcpy(&profile_idx_msg,
+                         rx_bytes,
+                         sizeof(profile_idx_msg));
+
+            /* HH에서 선택한 프로필 인덱스 반영 */
+            g_app.activeProfileIdx = profile_idx_msg.profile_index;
+
+            UART_Printf("[RX] HH_PROFILE_IDX profile_index=%u\r\n",
+                        profile_idx_msg.profile_index);
+            break;
+        }
+
+        default:
+        {
+            UART_Printf("[RX] Unknown CAN ID=0x%03X\r\n", rx_id);
+            break;
+        }
+    }
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * CAN TX
+ * - 10ms 주기 함수에서 송신 처리
+ * ------------------------------------------------------------------------------------------------- */
+static void App_HandleCanTx10ms(void)
+{
+    static boolean sent_once = FALSE;
+    uint32 tx_data[MAXIMUM_CAN_DATA_PAYLOAD];
+    uint32 nowMs = App_GetNowMs();
+
+    if ((sent_once == FALSE) && (nowMs >= 2000U))
+    {
+        (void)memset(tx_data, 0, sizeof(tx_data));
+        ((uint8 *)tx_data)[0] = 1U;   /* 테스트용 profile idx = 1 */
+
+        transmitCanMessage(SHARED_CAN_MSG_ID_AB_PROFILE_IDX, tx_data);
+
+        UART_Printf("[TX] AB_PROFILE_IDX profile_index=%u\r\n", 1U);
+
+        sent_once = TRUE;
+    }
+
+    /* 테스트 중에는 AB_PROFILE_TABLE 주기 송신은 끄는 게 좋음 */
+    /* TODO: ProfileTable 송신도 넣어야함. 변화가 있으면*/
+    /*
+    (void)memset(tx_data, 0, sizeof(tx_data));
+
+    (void)memcpy((uint8 *)tx_data,
+                &g_app.profileTable,
+                sizeof(Shared_Profile_Table_t));
+
+    transmitCanMessage(SHARED_CAN_MSG_ID_AB_PROFILE_TABLE, tx_data);
+
+    UART_Printf("[TX] AB_PROFILE_TABLE sent\r\n");
+    */
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * INIT CAN POLLING
+ * - 초기화 시점에 profile table을 일정 시간 동안 폴링으로 수신
+ * - 수신 성공 시 g_app.profileTable 갱신 후 TRUE 반환
+ * ------------------------------------------------------------------------------------------------- */
+static boolean App_PollProfileTableAtInit(uint32 timeout_ms)
+{
+    uint32       rx_data[MAXIMUM_CAN_DATA_PAYLOAD];
+    uint32       rx_id;
+    const uint8 *rx_bytes;
+    uint32       start_ms;
+
+    start_ms = App_GetNowMs();
+
+    while ((App_GetNowMs() - start_ms) < timeout_ms)
+    {
+        if (receiveCanMessage(rx_data) == FALSE)
+        {
+            continue;
+        }
+
+        rx_id    = g_multican.rxMsg.id;
+        rx_bytes = (const uint8 *)rx_data;
+
+        switch (rx_id)
+        {
+            case SHARED_CAN_MSG_ID_SS_PROFILE_TABLE:
+            case SHARED_CAN_MSG_ID_HH_PROFILE_TABLE:
+            {
+                Shared_Profile_Table_t profile_table_msg;
+
+                (void)memset(&profile_table_msg, 0, sizeof(profile_table_msg));
+                (void)memcpy(&profile_table_msg,
+                             rx_bytes,
+                             sizeof(profile_table_msg));
+
+                (void)memcpy(&g_app.profileTable,
+                             &profile_table_msg,
+                             sizeof(Shared_Profile_Table_t));
+
+                if (rx_id == SHARED_CAN_MSG_ID_SS_PROFILE_TABLE)
+                {
+                    UART_Printf("[INIT][RX] SS_PROFILE_TABLE received\r\n");
+                }
+                else
+                {
+                    UART_Printf("[INIT][RX] HH_PROFILE_TABLE received\r\n");
+                }
+
+                return TRUE;
+            }
+
+            case SHARED_CAN_MSG_ID_SS_STATE:
+            {
+                Shared_Can_State_t state_msg;
+
+                (void)memset(&state_msg, 0, sizeof(state_msg));
+                (void)memcpy(&state_msg,
+                             rx_bytes,
+                             sizeof(state_msg));
+
+                g_app.currentState = state_msg.current_state;
+
+                UART_Printf("[INIT][RX] SS_STATE current_state=%u\r\n",
+                            state_msg.current_state);
+                break;
+            }
+
+            default:
+            {
+                /* init 단계에서는 profile table 외 메시지는 무시 */
+                break;
+            }
+        }
+    }
+
+    UART_Printf("[INIT][RX] PROFILE_TABLE timeout -> use default\r\n");
+    return FALSE;
 }
