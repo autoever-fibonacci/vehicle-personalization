@@ -4,7 +4,8 @@ static void joyutask(void);
 static void joydtask(void);
 static void joyltask(void);
 static void joyrtask(void);
-static void swtask(void);
+static void sw_shortpress(void);
+static void sw_longpress(void);
 
 // TODO
 static uint8 getCurrentProfile(void);
@@ -15,13 +16,17 @@ static enum {
   ST_AMB_COL_SEL,
   ST_AMB_MOD_SEL,
   ST_COOLTEM_SEL,
-  ST_HEATTEM_SEL
+  ST_HEATTEM_SEL,
+  ST_PROFILE_ADD
 } uistate;
 
 static char coolline[] = "+  Over        -";
 static char heatline[] = "+  Under       -";
 static char profline[] = "+  Profile 0   -";
-static uint8 profsel = 0;
+static uint16 profsel = 0;
+
+#define SW_SHORTPRESS_10MS 3
+#define SW_LONGPRESS_10MS  100
 
 void App_Manager_UI_Init(void)
 {
@@ -67,11 +72,15 @@ void App_Manager_UI_Run(void)
   static uint8 pushcnt = 0;
   if (Joystick_pushed())
   {
-    if (++pushcnt > 3) pushcnt = 4;
-    if (pushcnt == 3) swtask();
+    if (++pushcnt > SW_LONGPRESS_10MS)
+      pushcnt = SW_LONGPRESS_10MS;
+    if (pushcnt == SW_LONGPRESS_10MS)
+      sw_longpress();
   }
   else
   {
+    if (pushcnt >= SW_SHORTPRESS_10MS && pushcnt < SW_LONGPRESS_10MS)
+      sw_shortpress();
     pushcnt = 0;
   }
 
@@ -128,6 +137,11 @@ void App_Manager_UI_Run(void)
     heatline[10] = (th % 10 + '0');
     LCD_printString(heatline, LOWERLINE);
     break;
+
+  case ST_PROFILE_ADD:
+    LCD_printString("\x7FRegister User \x7E", UPPERLINE);
+    LCD_printString("  Tag New RFID  ", LOWERLINE);
+    break;
   }
 }
 
@@ -152,6 +166,8 @@ static void joyutask()
   case ST_HEATTEM_SEL:
     Hvac_setHeatThreshold(Hvac_getHeatThreshold() + 1);
     break;
+  default:
+    break;
   }
 }
 
@@ -173,6 +189,8 @@ static void joydtask()
     break;
   case ST_HEATTEM_SEL:
     Hvac_setHeatThreshold(Hvac_getHeatThreshold() - 1);
+    break;
+  default:
     break;
   }
 }
@@ -196,6 +214,8 @@ static void joyltask()
   case ST_HEATTEM_SEL:
     uistate = ST_COOLTEM_SEL;
     break;
+  default:
+    break;
   }
 }
 
@@ -218,10 +238,12 @@ static void joyrtask()
   case ST_HEATTEM_SEL:
     uistate = ST_PROFILE_SEL;
     break;
+  default:
+    break;
   }
 }
 
-static void swtask(void)
+static void sw_shortpress(void)
 {
   if (uistate == ST_PROFILE_SEL)
   {
@@ -237,6 +259,17 @@ static void swtask(void)
     LCD_lighton();
     Amb_on();
   }
+}
+
+static void sw_longpress(void)
+{
+  if (uistate != ST_PROFILE_ADD)
+  {
+    uistate = ST_PROFILE_ADD;
+    // 프로필 추가 요청
+  }
+  // else
+  // uistate = ST_PROFILE_SEL;
 }
 
 static uint8 cp = 1;
