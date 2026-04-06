@@ -44,9 +44,9 @@
 #define MOTOR_WRONG_DIR_MARGIN        5
 #define MOTOR_DEFAULT_TIMEOUT_MS      3000U
 
-#define MOTOR_DEFAULT_TOLERANCE_TICKS 5
+#define MOTOR_DEFAULT_TOLERANCE_TICKS 2
 #define MOTOR_CORRECTION_DUTY         180U
-#define MOTOR_CORRECTION_MAX_COUNT    1U
+#define MOTOR_CORRECTION_MAX_COUNT    3U
 #define MOTOR_CORRECTION_TIMEOUT_MS   800U
 
 typedef enum
@@ -152,11 +152,25 @@ boolean          Motor_MoveStart(MotorInstance_t *m,
                                  uint32 timeoutMs,
                                  sint32 toleranceTicks);
 
+boolean          Motor_MoveStartEx(MotorInstance_t *m,
+                                   sint32 ticks,
+                                   uint16 duty,
+                                   uint32 timeoutMs,
+                                   sint32 toleranceTicks,
+                                   boolean useBoost);
+
 boolean          Motor_MoveToTick(MotorInstance_t *m,
                                   sint32 absoluteTargetTick,
                                   uint16 duty,
                                   uint32 timeoutMs,
                                   sint32 toleranceTicks);
+
+boolean          Motor_MoveToTickEx(MotorInstance_t *m,
+                                    sint32 absoluteTargetTick,
+                                    uint16 duty,
+                                    uint32 timeoutMs,
+                                    sint32 toleranceTicks,
+                                    boolean useBoost);
 
 void             Motor_MoveService(MotorInstance_t *m);
 boolean          Motor_IsBusy(MotorInstance_t *m);

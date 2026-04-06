@@ -48,34 +48,34 @@
 /* -------------------------------------------------------------------------------------------------
  * Motion / actuator tuning
  * ------------------------------------------------------------------------------------------------- */
-#define MIRROR_MIN_TICK              (0)
-#define MIRROR_MAX_TICK              (300)
-#define MIRROR_JOG_STEP_TICK         (10)
-#define MIRROR_JOG_DUTY              (550U)
+#define MIRROR_MIN_TICK              (0U)
+#define MIRROR_MAX_TICK              (255U)
+#define MIRROR_JOG_STEP_TICK         (1)
+#define MIRROR_JOG_DUTY              (500U)
 #define MIRROR_JOG_TIMEOUT_MS        (300U)
-#define MIRROR_JOG_TOL_TICK          (3)
+#define MIRROR_JOG_TOL_TICK          (2)
 #define MIRROR_JOG_ISSUE_MS          (20U)
-#define MIRROR_RESTORE_DUTY          (600U)
+#define MIRROR_RESTORE_DUTY          (550U)
 #define MIRROR_RESTORE_TIMEOUT_MS    (6000U)
-#define MIRROR_RESTORE_TOL_TICK      (5)
+#define MIRROR_RESTORE_TOL_TICK      (2)
 
-#define SEAT_MIN_TICK                (-500)
-#define SEAT_MAX_TICK                (500)
-#define SEAT_JOG_STEP_TICK           (15)
-#define SEAT_JOG_DUTY                (550U)
+#define SEAT_MIN_TICK                (0U)
+#define SEAT_MAX_TICK                (255U)
+#define SEAT_JOG_STEP_TICK           (1)
+#define SEAT_JOG_DUTY                (500U)
 #define SEAT_JOG_TIMEOUT_MS          (300U)
-#define SEAT_JOG_TOL_TICK            (3)
+#define SEAT_JOG_TOL_TICK            (2)
 #define SEAT_JOG_ISSUE_MS            (20U)
-#define SEAT_RESTORE_DUTY            (600U)
+#define SEAT_RESTORE_DUTY            (550U)
 #define SEAT_RESTORE_TIMEOUT_MS      (6000U)
-#define SEAT_RESTORE_TOL_TICK        (5)
+#define SEAT_RESTORE_TOL_TICK        (2)
 
 #define DOOR_CLOSE_ANGLE_DEG         (0)
 #define DOOR_OPEN_ANGLE_DEG          (90)
 #define DOOR_INIT_ANGLE_DEG          (0)
 
-#define MIRROR_TICK_PER_PROFILE_UNIT (1)
-#define SEAT_TICK_PER_PROFILE_UNIT   (2)
+#define MIRROR_TICK_PER_PROFILE_UNIT (1U)
+#define SEAT_TICK_PER_PROFILE_UNIT   (1U)
 
 /* -------------------------------------------------------------------------------------------------
  * Runtime
@@ -346,7 +346,7 @@ static sint32 App_ProfileToMirrorTick(uint8 mirrorAngle)
 
 static sint32 App_ProfileToSeatTick(uint8 seatPos)
 {
-    sint32 tick = ((sint32)seatPos - 128) * SEAT_TICK_PER_PROFILE_UNIT;
+    sint32 tick = (sint32)seatPos * SEAT_TICK_PER_PROFILE_UNIT;
 
     if (tick < SEAT_MIN_TICK) tick = SEAT_MIN_TICK;
     if (tick > SEAT_MAX_TICK) tick = SEAT_MAX_TICK;
@@ -365,7 +365,7 @@ static uint8 App_MirrorTickToProfile(sint32 mirrorTick)
 
 static uint8 App_SeatTickToProfile(sint32 seatTick)
 {
-    sint32 value = (seatTick / SEAT_TICK_PER_PROFILE_UNIT) + 128;
+    sint32 value = seatTick / SEAT_TICK_PER_PROFILE_UNIT;
 
     if (value < 0)   value = 0;
     if (value > 255) value = 255;
@@ -701,8 +701,13 @@ static void App_HandleStateEntry(void)
         DoorActuator_Close(&g_app.door);
         App_SaveCurrentPositionToActiveProfile();
         g_app.txProfileTableRequested = TRUE;
-        App_ApplyProfileByIndex(SHARED_PROFILE_INDEX_DEFAULT);
-        UART_Printf("[STATE] shutdown -> save + default restore\r\n");
+        PositionAxis_Stop(&g_app.mirrorAxis);
+        PositionAxis_Stop(&g_app.seatAxis);
+        PositionAxis_ClearResult(&g_app.mirrorAxis);
+        PositionAxis_ClearResult(&g_app.seatAxis);
+        (void)PositionAxis_StartParkZero(&g_app.mirrorAxis);
+        (void)PositionAxis_StartParkZero(&g_app.seatAxis);
+        UART_Printf("[STATE] shutdown -> save + zero park\r\n");
         break;
 
     case SHARED_SYSTEM_STATE_DENIED:
@@ -712,8 +717,7 @@ static void App_HandleStateEntry(void)
     case SHARED_SYSTEM_STATE_EMERGENCY:
     default:
         DoorActuator_Open(&g_app.door);
-        PositionAxis_Stop(&g_app.seatAxis);
-        (void)PositionAxis_StartRestore(&g_app.seatAxis, SEAT_MIN_TICK);
+        App_ApplyProfileByIndex(SHARED_PROFILE_INDEX_EMERGENCY);
         break;
     }
 }
