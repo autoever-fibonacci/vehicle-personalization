@@ -25,12 +25,18 @@ static boolean axisStartAbsoluteMove(PositionAxis_t *a,
                                      sint32 targetTick,
                                      uint16 duty,
                                      uint32 timeoutMs,
-                                     sint32 toleranceTicks)
+                                     sint32 toleranceTicks,
+                                     boolean useBoost)
 {
     Motor_ClearState(a->motor);
     targetTick = axisClampTick(a, targetTick);
 
-    if (!Motor_MoveToTick(a->motor, targetTick, duty, timeoutMs, toleranceTicks))
+    if (!Motor_MoveToTickEx(a->motor,
+                            targetTick,
+                            duty,
+                            timeoutMs,
+                            toleranceTicks,
+                            useBoost))
     {
         a->lastResult = AXIS_RESULT_REJECTED;
         return FALSE;
@@ -89,7 +95,8 @@ static void axisHandleRestoreToZero(PositionAxis_t *a)
                                   a->restoreTargetTick,
                                   a->restoreDuty,
                                   a->restoreTimeoutMs,
-                                  a->restoreToleranceTicks))
+                                  a->restoreToleranceTicks,
+                                  TRUE))
         {
             a->mode = AXIS_MODE_RESTORE_TO_TARGET;
             return;
@@ -172,7 +179,8 @@ static void axisHandleJog(PositionAxis_t *a, boolean positive)
                               nextTick,
                               a->jogDuty,
                               a->jogTimeoutMs,
-                              a->jogToleranceTicks))
+                              a->jogToleranceTicks,
+                              FALSE))
     {
         a->lastJogIssueStm = now;
     }
@@ -243,7 +251,8 @@ boolean PositionAxis_StartRestore(PositionAxis_t *a, sint32 targetTick)
                                0,
                                a->restoreDuty,
                                a->restoreTimeoutMs,
-                               a->restoreToleranceTicks))
+                               a->restoreToleranceTicks,
+                               TRUE))
     {
         a->mode = AXIS_MODE_ERROR;
         return FALSE;
