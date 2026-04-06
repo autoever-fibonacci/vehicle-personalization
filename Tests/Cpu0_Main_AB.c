@@ -19,7 +19,7 @@ void core0_main(void)
 
     /* 프로젝트 실제 초기화 함수명에 맞춰 사용 */
     Driver_Stm_Init();
-    UART_Init();
+    init_UART();
 
     App_Init();
 

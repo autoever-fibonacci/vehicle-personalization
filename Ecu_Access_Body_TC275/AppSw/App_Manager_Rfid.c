@@ -307,6 +307,9 @@ void  App_Manager_Rfid_Run(uint32 now_ms,
         }
         else if (App_Manager_Rfid_ReadCardUid(&uid) == TRUE)
         {
+            UART_Printf("[App_Manager_Rfid_Run] uid=%02X:%02X\r\n",
+            uid.uid[0],
+            uid.uid[1]);
             /* UID 읽기에 성공하면 current_uid에 저장 */
             App_Manager_Rfid_CopyUid(&g_app_manager_rfid_context.current_uid, &uid);
             g_app_manager_rfid_context.has_current_uid = TRUE;

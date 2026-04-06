@@ -16,7 +16,7 @@ void core0_main(void)
     IfxScuWdt_disableCpuWatchdog(IfxScuWdt_getCpuWatchdogPassword());
     IfxScuWdt_disableSafetyWatchdog(IfxScuWdt_getSafetyWatchdogPassword());
 
-    UART_Init();
+    init_UART();
     App_Scheduler_Init();
 
     UART_Printf("\r\n");
