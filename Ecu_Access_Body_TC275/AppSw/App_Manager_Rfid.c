@@ -23,7 +23,7 @@
 #define APP_MANAGER_RFID_POLL_CONFIRM_COUNT    3U
 
 /* 간단한 내부 등록 카드 DB 최대 개수 */
-#define APP_MANAGER_RFID_DB_MAX_CARDS          16U
+#define APP_MANAGER_RFID_DB_MAX_CARDS          5U
 
 /*********************************************************************************************************************/
 /*------------------------------------------------Type Definitions--------------------------------------------------*/
@@ -516,29 +516,12 @@ static void App_Manager_Rfid_ResetDb(void)
         g_app_manager_rfid_db[idx].used = FALSE;
         App_Manager_Rfid_ClearUid(&g_app_manager_rfid_db[idx].uid);
     }
-
-    g_app_manager_rfid_db[0].used = 1;
-    g_app_manager_rfid_db[1].used = 1;
-
-    g_app_manager_rfid_db[0].uid.size = 4;
-    g_app_manager_rfid_db[1].uid.size = 4;
-
-    g_app_manager_rfid_db[0].uid.uid[0] = 0x86; // big-endian
-    g_app_manager_rfid_db[0].uid.uid[1] = 0xb8;
-    g_app_manager_rfid_db[0].uid.uid[2] = 0x24;
-    g_app_manager_rfid_db[0].uid.uid[3] = 0x07;
-
-    g_app_manager_rfid_db[1].uid.uid[0] = 0x52; // big-endian
-    g_app_manager_rfid_db[1].uid.uid[1] = 0xda;
-    g_app_manager_rfid_db[1].uid.uid[2] = 0x24;
-    g_app_manager_rfid_db[1].uid.uid[3] = 0x07;
-
 }
 
 /*
  * UID 구조체 초기화
  *
- * size, sak, uid 배열 전체를 0으로 만든다.
+ * size, uid 배열 전체를 0으로 만든다.
  */
 static void App_Manager_Rfid_ClearUid(Mfrc522_Uid *uid)
 {
@@ -560,7 +543,7 @@ static void App_Manager_Rfid_ClearUid(Mfrc522_Uid *uid)
 /*
  * UID 구조체 복사
  *
- * src의 size, sak, uid 배열을 dst로 복사한다.
+ * src의 size, uid 배열을 dst로 복사한다.
  */
 static void App_Manager_Rfid_CopyUid(Mfrc522_Uid *dst, const Mfrc522_Uid *src)
 {

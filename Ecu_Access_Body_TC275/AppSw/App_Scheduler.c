@@ -98,9 +98,16 @@ typedef struct
     boolean                shutdownSaveIssued;
     boolean                shutdownParkIssued;
     boolean                emergencySeatIssued;
+
+    /* CAN TX request */
+    boolean                   txProfileIdxRequested;
+    uint8                     txProfileIdxValue;
+    boolean                   txProfileTableRequested;
 } AppRuntime_t;
 
 static AppRuntime_t g_app;
+static boolean g_ab_profile_idx_tx_requested = FALSE;
+static uint8   g_ab_profile_idx_tx_value     = SHARED_PROFILE_INDEX_DEFAULT;
 
 /* debug watch */
 volatile uint8                g_dbgCurrentState;
@@ -616,11 +623,14 @@ void AppTask10ms(void)
             g_app.activeProfileIdx = SHARED_PROFILE_INDEX_DEFAULT;
         }
 
-        UART_Printf("[RFID] success idx=%d\r\n",
-                    g_app.activeProfileIdx);
+        UART_Printf("[RFID] success idx=%u\r\n", g_app.activeProfileIdx);
 
-        /* 상태 전이는 여기서 하지 않음 */
-        /* TODO: AB_PROFILE_IDX CAN 송신 */
+        g_app.txProfileIdxValue     = g_app.activeProfileIdx;
+        g_app.txProfileIdxRequested = TRUE;
+
+        /* 필요 시 활성화
+        g_app.txProfileTableRequested = TRUE;
+        */
     }
     else if (g_app.rfidOut.event == APP_MANAGER_RFID_EVENT_FAIL)
     {
@@ -777,34 +787,40 @@ static void App_HandleCanRx1ms(void)
  * ------------------------------------------------------------------------------------------------- */
 static void App_HandleCanTx10ms(void)
 {
-    static boolean sent_once = FALSE;
     uint32 tx_data[MAXIMUM_CAN_DATA_PAYLOAD];
-    uint32 nowMs = App_GetNowMs();
 
-    if ((sent_once == FALSE) && (nowMs >= 2000U))
+    if (g_app.txProfileIdxRequested == TRUE)
     {
         (void)memset(tx_data, 0, sizeof(tx_data));
-        ((uint8 *)tx_data)[0] = 1U;   /* 테스트용 profile idx = 1 */
+        ((uint8 *)tx_data)[0] = g_app.txProfileIdxValue;
 
         transmitCanMessage(SHARED_CAN_MSG_ID_AB_PROFILE_IDX, tx_data);
 
-        UART_Printf("[TX] AB_PROFILE_IDX profile_index=%u\r\n", 1U);
+        UART_Printf("[TX] AB_PROFILE_IDX profile_index=%u\r\n",
+                    g_app.txProfileIdxValue);
 
-        sent_once = TRUE;
+        g_app.txProfileIdxRequested = FALSE;
     }
 
-    /* 테스트 중에는 AB_PROFILE_TABLE 주기 송신은 끄는 게 좋음 */
-    /* TODO: ProfileTable 송신도 넣어야함. 변화가 있으면*/
+    /* 추후 프로필 테이블 송신 추가
+     * - active/shutdown 시점에 현재 테이블을 다른 ECU로 공유할 때 사용
+     * - Shared_Profile_Table_t 크기가 40B라는 전제에서 1 frame 전송
+     */
     /*
-    (void)memset(tx_data, 0, sizeof(tx_data));
+    if (g_app.txProfileTableRequested == TRUE)
+    {
+        (void)memset(tx_data, 0, sizeof(tx_data));
 
-    (void)memcpy((uint8 *)tx_data,
-                &g_app.profileTable,
-                sizeof(Shared_Profile_Table_t));
+        (void)memcpy((uint8 *)tx_data,
+                     &g_app.profileTable,
+                     sizeof(Shared_Profile_Table_t));
 
-    transmitCanMessage(SHARED_CAN_MSG_ID_AB_PROFILE_TABLE, tx_data);
+        transmitCanMessage(SHARED_CAN_MSG_ID_AB_PROFILE_TABLE, tx_data);
 
-    UART_Printf("[TX] AB_PROFILE_TABLE sent\r\n");
+        UART_Printf("[TX] AB_PROFILE_TABLE sent\r\n");
+
+        g_app.txProfileTableRequested = FALSE;
+    }
     */
 }
 
