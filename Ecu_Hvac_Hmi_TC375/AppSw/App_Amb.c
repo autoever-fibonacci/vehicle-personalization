@@ -1,18 +1,47 @@
+/*********************************************************************************************************************/
+/*-----------------------------------------------------Includes------------------------------------------------------*/
+/*********************************************************************************************************************/
 #include "App_Amb.h"
 #include "Base_Neopixel.h"
 
-#define MAXVAL    75
-#define MINVAL    20
-#define DVAL_BR   2
-#define DVAL_WA   5
+/*********************************************************************************************************************/
+/*------------------------------------------------------Macros-------------------------------------------------------*/
+/*********************************************************************************************************************/
+// 숨쉬기, 파도타기 최대/최소 밝기
+#define MAXVAL 75
+#define MINVAL 20
+
+// 숨쉬기, 파도타기 밝기 변화량
+#define DVAL_BR 2
+#define DVAL_WA 5
+
+// 변화 속도 분주비
 #define PRESCALER 10
 
+/*********************************************************************************************************************/
+/*--------------------------------------------Private Variables/Constants--------------------------------------------*/
+/*********************************************************************************************************************/
 static Amb_mode_e ambmode;
 static int baseh, bases, basev;
 static int nowv;
 static boolean breathdesc;
 
-void Amb_init(void)
+/*********************************************************************************************************************/
+/*------------------------------------------------Function Prototypes------------------------------------------------*/
+/*********************************************************************************************************************/
+void App_Manager_Ambient_Init(void);
+void App_Ambient_Nextmode(void);
+void App_Manager_Ambient_Run(void);
+void App_Ambient_changeColor(sint8 amount);
+void Amb_getmode(Amb_mode_e *mode);
+void Amb_off(void);
+void Amb_on(void);
+void Amb_getHue(uint16 *hue);
+
+/*********************************************************************************************************************/
+/*---------------------------------------------Function Implementations----------------------------------------------*/
+/*********************************************************************************************************************/
+void App_Manager_Ambient_Init(void)
 {
   initNeopixel();
   ambmode = AMB_CONSTANT;
@@ -21,7 +50,7 @@ void Amb_init(void)
   basev = MAXVAL;
 }
 
-void Amb_nextmode(void)
+void App_Ambient_Nextmode(void)
 {
   nowv = MAXVAL;
   breathdesc = TRUE;
@@ -44,7 +73,7 @@ void Amb_nextmode(void)
   }
 }
 
-void Amb_transition(void)
+void App_Manager_Ambient_Run(void)
 {
   static int cnt = PRESCALER;
   if (--cnt) return;
@@ -78,15 +107,15 @@ void Amb_transition(void)
   transmitNeopixel();
 }
 
-void Amb_changeColor(sint8 amount)
+void App_Ambient_changeColor(sint8 amount)
 {
   baseh += amount + 360;
   baseh %= 360;
 }
 
-Amb_mode_e Amb_getmode(void)
+void Amb_getmode(Amb_mode_e *mode)
 {
-  return ambmode;
+  *mode = ambmode;
 }
 
 void Amb_off(void)
@@ -98,4 +127,9 @@ void Amb_off(void)
 void Amb_on(void)
 {
   basev = MAXVAL;
+}
+
+void Amb_getHue(uint16 *hue)
+{
+  *hue = (uint16)baseh;
 }

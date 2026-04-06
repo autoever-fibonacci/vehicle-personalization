@@ -1,21 +1,27 @@
+/*********************************************************************************************************************/
+/*-----------------------------------------------------Includes------------------------------------------------------*/
+/*********************************************************************************************************************/
 #include "App_UI.h"
+#include "App_Manager_System.h"
+#include "App_Scheduler.h"
+#include "Shared_Profile.h"
 
-static void joyutask(void);
-static void joydtask(void);
-static void joyltask(void);
-static void joyrtask(void);
-static void swtask(void);
+/*********************************************************************************************************************/
+/*------------------------------------------------------Macros-------------------------------------------------------*/
+/*********************************************************************************************************************/
+#define SW_SHORTPRESS_10MS 3
+#define SW_LONGPRESS_10MS  100
 
-// TODO
-static uint8 getCurrentProfile(void);
-static void setCurrentProfile(uint8 prof);
-
+/*********************************************************************************************************************/
+/*--------------------------------------------Private Variables/Constants--------------------------------------------*/
+/*********************************************************************************************************************/
 static enum {
   ST_PROFILE_SEL,
   ST_AMB_COL_SEL,
   ST_AMB_MOD_SEL,
   ST_COOLTEM_SEL,
-  ST_HEATTEM_SEL
+  ST_HEATTEM_SEL,
+  ST_PROFILE_ADD
 } uistate;
 
 static char coolline[] = "+  Over        -";
@@ -23,21 +29,38 @@ static char heatline[] = "+  Under       -";
 static char profline[] = "+  Profile 0   -";
 static uint8 profsel = 0;
 
-void UI_init(void)
+/*********************************************************************************************************************/
+/*------------------------------------------------Function Prototypes------------------------------------------------*/
+/*********************************************************************************************************************/
+static void joyutask(void);
+static void joydtask(void);
+static void joyltask(void);
+static void joyrtask(void);
+static void sw_shortpress(void);
+static void sw_longpress(void);
+static void profupdate(void);
+
+void App_Manager_UI_Init(void);
+void App_Manager_UI_Run(void);
+
+/*********************************************************************************************************************/
+/*---------------------------------------------Function Implementations----------------------------------------------*/
+/*********************************************************************************************************************/
+void App_Manager_UI_Init(void)
 {
-  LCD_init();
+  App_Manager_LCD_Init();
   LCD_clearScreen();
   Joystick_init();
-  Amb_init();
+  App_Manager_Ambient_Init();
   uistate = ST_PROFILE_SEL;
   coolline[11] = 0xDF;
   heatline[11] = 0xDF;
   coolline[12] = 'C';
   heatline[12] = 'C';
-  profsel = getCurrentProfile();
+  App_Manager_System_GetActiveProfileIndex(&profsel);
 }
 
-void UI_task(void)
+void App_Manager_UI_Run(void)
 {
   // 조이스틱 인식
   static joystick_dir_e prev = JOY_NEUTRAL, res = JOY_NEUTRAL;
@@ -67,22 +90,28 @@ void UI_task(void)
   static uint8 pushcnt = 0;
   if (Joystick_pushed())
   {
-    if (++pushcnt > 3) pushcnt = 4;
-    if (pushcnt == 3) swtask();
+    if (++pushcnt > SW_LONGPRESS_10MS)
+      pushcnt = SW_LONGPRESS_10MS;
+    if (pushcnt == SW_LONGPRESS_10MS)
+      sw_longpress();
   }
   else
   {
+    if (pushcnt >= SW_SHORTPRESS_10MS && pushcnt < SW_LONGPRESS_10MS)
+      sw_shortpress();
     pushcnt = 0;
   }
 
   // LCD 출력
   static uint8 th = 0;
+  static uint8 nowprof;
   switch (uistate)
   {
   case ST_PROFILE_SEL:
     LCD_printString("\x7FProfile Select\x7E", UPPERLINE);
     profline[12] = profsel + '0';
-    if (profsel == getCurrentProfile())
+    App_Manager_System_GetActiveProfileIndex(&nowprof);
+    if (profsel == nowprof)
       profline[2] = '[', profline[13] = ']';
     else
       profline[2] = ' ', profline[13] = ' ';
@@ -96,7 +125,9 @@ void UI_task(void)
 
   case ST_AMB_MOD_SEL:
     LCD_printString("\x7F Amb Mode Set \x7E", UPPERLINE);
-    switch (Amb_getmode())
+    Amb_mode_e ambmode;
+    Amb_getmode(&ambmode);
+    switch (ambmode)
     {
     case AMB_CONSTANT:
       LCD_printString("+   Constant   -", LOWERLINE);
@@ -128,6 +159,11 @@ void UI_task(void)
     heatline[10] = (th % 10 + '0');
     LCD_printString(heatline, LOWERLINE);
     break;
+
+  case ST_PROFILE_ADD:
+    LCD_printString("\x7FRegister User \x7E", UPPERLINE);
+    LCD_printString("  Tag New RFID  ", LOWERLINE);
+    break;
   }
 }
 
@@ -136,21 +172,27 @@ static void joyutask()
   switch (uistate)
   {
   case ST_PROFILE_SEL:
-    if (--profsel == 0) profsel = 5;
+    if (--profsel == 0) profsel = 3;
     break;
   case ST_AMB_COL_SEL:
-    Amb_changeColor(-20);
+    App_Ambient_changeColor(-20);
+    profupdate();
     break;
   case ST_AMB_MOD_SEL:
-    Amb_nextmode();
-    Amb_nextmode();
-    Amb_nextmode();
+    App_Ambient_Nextmode();
+    App_Ambient_Nextmode();
+    App_Ambient_Nextmode();
+    profupdate();
     break;
   case ST_COOLTEM_SEL:
     Hvac_setCoolThreshold(Hvac_getCoolThreshold() + 1);
+    profupdate();
     break;
   case ST_HEATTEM_SEL:
     Hvac_setHeatThreshold(Hvac_getHeatThreshold() + 1);
+    profupdate();
+    break;
+  default:
     break;
   }
 }
@@ -160,19 +202,25 @@ static void joydtask()
   switch (uistate)
   {
   case ST_PROFILE_SEL:
-    if (++profsel == 6) profsel = 1;
+    if (++profsel == 4) profsel = 1;
     break;
   case ST_AMB_COL_SEL:
-    Amb_changeColor(20);
+    App_Ambient_changeColor(20);
+    profupdate();
     break;
   case ST_AMB_MOD_SEL:
-    Amb_nextmode();
+    App_Ambient_Nextmode();
+    profupdate();
     break;
   case ST_COOLTEM_SEL:
     Hvac_setCoolThreshold(Hvac_getCoolThreshold() - 1);
+    profupdate();
     break;
   case ST_HEATTEM_SEL:
     Hvac_setHeatThreshold(Hvac_getHeatThreshold() - 1);
+    profupdate();
+    break;
+  default:
     break;
   }
 }
@@ -196,6 +244,8 @@ static void joyltask()
   case ST_HEATTEM_SEL:
     uistate = ST_COOLTEM_SEL;
     break;
+  default:
+    break;
   }
 }
 
@@ -218,34 +268,57 @@ static void joyrtask()
   case ST_HEATTEM_SEL:
     uistate = ST_PROFILE_SEL;
     break;
+  default:
+    break;
   }
 }
 
-static void swtask(void)
+static void sw_shortpress(void)
 {
   if (uistate == ST_PROFILE_SEL)
   {
-    setCurrentProfile(profsel);
+    App_Manager_System_SetActiveProfileIndex(profsel);
+    App_Scheduler_IdxTxReq();
   }
   if (uistate == ST_AMB_COL_SEL)
   {
-    LCD_lightoff();
-    Amb_off();
+    // LCD_lightoff();
+    // Amb_off();
   }
   if (uistate == ST_AMB_MOD_SEL)
   {
-    LCD_lighton();
-    Amb_on();
+    // LCD_lighton();
+    // Amb_on();
   }
 }
 
-static uint8 cp = 1;
-static uint8 getCurrentProfile(void) // TODO
+static void sw_longpress(void)
 {
-  return cp;
+  if (uistate != ST_PROFILE_ADD)
+  {
+    uistate = ST_PROFILE_ADD;
+    // 프로필 추가 요청
+  }
+  else
+    uistate = ST_PROFILE_SEL;
 }
 
-static void setCurrentProfile(uint8 prof) // TODO
+static void profupdate(void)
 {
-  cp = prof;
+  uint8 profidx;
+  Shared_Profile_t newprofile;
+  Amb_mode_e ambmode;
+  uint16 hue;
+
+  App_Manager_System_GetActiveProfileIndex(&profidx);
+  App_Manager_System_GetProfile(profidx, &newprofile);
+  Amb_getmode(&ambmode);
+  Amb_getHue(&hue);
+  hue >>= 1;
+  newprofile.ambient_light = (ambmode << 4 | hue);
+  newprofile.heater_on_threshold = Hvac_getHeatThreshold();
+  newprofile.ac_on_threshold = Hvac_getCoolThreshold();
+  App_Manager_System_SetProfile(profidx, &newprofile);
+
+  App_Scheduler_TableTxReq();
 }

@@ -106,5 +106,4 @@ void read_ext_device_address(void)
 void I2C_writeSingleByte(uint8 byte)
 {
   while (IfxI2c_I2c_write2(&g_i2cDevEeprom, &byte, 1) == IfxI2c_I2c_Status_nak);
-  // IfxI2c_I2c_write2(&g_i2cDevEeprom, &byte, 1);
 }
