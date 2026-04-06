@@ -107,6 +107,11 @@ Shared_System_State_t App_Manager_System_GetState(void)
   return g_app_manager_system_context.current_state;
 }
 
+void App_Manager_System_UpdateState(Shared_System_State_t state)
+{
+  g_app_manager_system_context.current_state = state;
+}
+
 void App_Manager_System_GetProfile(uint8 idx, Shared_Profile_t *profile)
 {
   *profile = g_app_manager_system_context.profile_table.profile[idx];

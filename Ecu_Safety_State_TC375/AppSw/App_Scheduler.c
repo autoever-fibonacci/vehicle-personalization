@@ -136,23 +136,21 @@ void App_Scheduler_Run(void)
 
 static void App_Scheduler_Run_1ms(void)
 {
-    App_Scheduler_Task_Temp();
     /* watchdog / debounce 등 */
+    g_app_scheduler_now_ms = Shared_Util_Time_GetNowMs();
 }
 
 static void App_Scheduler_Run_10ms(void)
 {
-    g_app_scheduler_now_ms = Shared_Util_Time_GetNowMs();
-
-    App_Scheduler_Task_CanRx();
-    App_Scheduler_Task_System();
-    App_Scheduler_Task_CanTx();
-
+    App_Scheduler_Task_Temp();
 }
 
 static void App_Scheduler_Run_100ms(void)
 {
     /* diagnostic / health monitoring */
+    App_Scheduler_Task_CanRx();
+    App_Scheduler_Task_System();
+    App_Scheduler_Task_CanTx();
 }
 
 static void App_Scheduler_Run_1s(void)

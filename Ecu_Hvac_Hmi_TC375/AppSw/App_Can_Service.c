@@ -169,7 +169,6 @@ void App_Can_Service_HandleRxFrame(const Shared_Can_Frame_t *rx_frame)
   }
 
   case SHARED_CAN_MSG_ID_AB_PROFILE_TABLE:
-  case SHARED_CAN_MSG_ID_SS_PROFILE_TABLE:
   {
     if (rx_frame->payload_size >= sizeof(Shared_Profile_Table_t))
     {
@@ -187,6 +186,24 @@ void App_Can_Service_HandleRxFrame(const Shared_Can_Frame_t *rx_frame)
 
   case SHARED_CAN_MSG_ID_SS_STATE:
   {
+    if (rx_frame->payload_size >= SHARED_CAN_MSG_SIZE_SS_STATE)
+    {
+      Shared_Can_State_t state_msg;
+
+      (void)memset(&state_msg, 0, sizeof(Shared_Can_State_t));
+      (void)memcpy(&state_msg,
+                   rx_frame->payload,
+                   sizeof(Shared_Can_State_t));
+
+      App_Manager_System_UpdateState((Shared_System_State_t)state_msg.current_state);
+    }
+    break;
+  }
+
+  case SHARED_CAN_MSG_ID_HH_PROFILE_TABLE:
+  case SHARED_CAN_MSG_ID_SS_PROFILE_TABLE:
+  {
+    /* Runtime에서는 HH comfort 소유값을 유지하고, init에서만 full copy 한다. */
     break;
   }
 

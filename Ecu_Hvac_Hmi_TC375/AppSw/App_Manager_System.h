@@ -28,6 +28,7 @@
 void App_Manager_System_Init(void);
 
 Shared_System_State_t App_Manager_System_GetState(void);
+void App_Manager_System_UpdateState(Shared_System_State_t state);
 void App_Manager_System_SetActiveProfileIndex(uint8 idx);
 void App_Manager_System_GetActiveProfileIndex(uint8 *idx);
 
