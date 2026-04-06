@@ -16,11 +16,11 @@
 #define APP_MANAGER_RFID_LOCKOUT_MS            5000U
 
 /* 성공/실패 피드백 상태 유지 시간 */
-#define APP_MANAGER_RFID_SUCCESS_FEEDBACK_MS   500U
-#define APP_MANAGER_RFID_FAIL_FEEDBACK_MS      500U
+#define APP_MANAGER_RFID_SUCCESS_FEEDBACK_MS   3000U
+#define APP_MANAGER_RFID_FAIL_FEEDBACK_MS      3000U
 
 /* 카드 순간 검출 노이즈를 줄이기 위한 연속 polling 확인 횟수 */
-#define APP_MANAGER_RFID_POLL_CONFIRM_COUNT    3U
+#define APP_MANAGER_RFID_POLL_CONFIRM_COUNT    5U
 
 /* 간단한 내부 등록 카드 DB 최대 개수 */
 #define APP_MANAGER_RFID_DB_MAX_CARDS          5U
