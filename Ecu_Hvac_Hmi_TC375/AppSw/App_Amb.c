@@ -137,6 +137,16 @@ void Amb_getmode(Amb_mode_e *mode)
   *mode = ambmode;
 }
 
+void Amb_setmode(Amb_mode_e mode)
+{
+  ambmode = mode;
+}
+
+void Amb_setcolor2x(uint8 amount)
+{
+  baseh = 2 * (int)amount;
+}
+
 void Amb_off(void)
 {
   basev = 0;
