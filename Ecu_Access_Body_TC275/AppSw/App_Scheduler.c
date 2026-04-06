@@ -98,6 +98,7 @@ typedef struct
     boolean                shutdownSaveIssued;
     boolean                shutdownParkIssued;
     boolean                emergencySeatIssued;
+    boolean                rfidTransitionLatched;
 
     /* CAN TX request */
     boolean                   txProfileIdxRequested;
@@ -106,8 +107,7 @@ typedef struct
 } AppRuntime_t;
 
 static AppRuntime_t g_app;
-static boolean g_ab_profile_idx_tx_requested = FALSE;
-static uint8   g_ab_profile_idx_tx_value     = SHARED_PROFILE_INDEX_DEFAULT;
+
 
 /* debug watch */
 volatile uint8                g_dbgCurrentState;
@@ -135,6 +135,7 @@ static void    App_InitSeatAxis(void);
 static void    App_InitDoor(void);
 
 static void    App_OnStateChanged(uint8 newState);
+static void    App_UpdateSystemState(uint8 newState);
 
 static sint32  App_ProfileToMirrorTick(uint8 mirrorAngle);
 static sint32  App_ProfileToSeatTick(uint8 seatPos);
@@ -143,7 +144,6 @@ static uint8   App_SeatTickToProfile(sint32 seatTick);
 
 static void    App_ApplyProfileByIndex(uint8 profileIdx);
 static void    App_SaveCurrentPositionToActiveProfile(void);
-static boolean App_IsRfidEnabledState(uint8 state);
 
 static void    App_HandleButtons1ms(void);
 static void    App_HandleState100ms(void);
@@ -307,7 +307,26 @@ static void App_OnStateChanged(uint8 newState)
     g_app.shutdownParkIssued  = FALSE;
     g_app.emergencySeatIssued = FALSE;
 
-    (void)newState;
+    if (newState == SHARED_SYSTEM_STATE_SLEEP)
+    {
+        g_app.activeProfileIdx      = SHARED_PROFILE_INDEX_INVALID;
+        g_app.rfidTransitionLatched = FALSE;
+    }
+    else if (newState == SHARED_SYSTEM_STATE_ACTIVATED)
+    {
+        /* Allow one more valid tag to request shutdown. */
+        g_app.rfidTransitionLatched = FALSE;
+    }
+}
+
+static void App_UpdateSystemState(uint8 newState)
+{
+    if (g_app.currentState != newState)
+    {
+        g_app.prevState    = g_app.currentState;
+        g_app.currentState = newState;
+        App_OnStateChanged(newState);
+    }
 }
 
 static sint32 App_ProfileToMirrorTick(uint8 mirrorAngle)
@@ -389,13 +408,6 @@ static void App_SaveCurrentPositionToActiveProfile(void)
 
     g_app.profileTable.profile[g_app.activeProfileIdx].seat_motor_angle =
         App_SeatTickToProfile(seatTick);
-}
-
-static boolean App_IsRfidEnabledState(uint8 state)
-{
-    if (state == SHARED_SYSTEM_STATE_SLEEP)     return TRUE;
-    if (state == SHARED_SYSTEM_STATE_ACTIVATED) return TRUE;
-    return FALSE;
 }
 
 /* -------------------------------------------------------------------------------------------------
@@ -570,14 +582,14 @@ void App_Init(void)
 
     initMultican();
 
-    g_app.currentState     = SHARED_SYSTEM_STATE_SLEEP;
-    g_app.prevState        = SHARED_SYSTEM_STATE_SLEEP;
-    g_app.activeProfileIdx = SHARED_PROFILE_INDEX_DEFAULT;
+    g_app.currentState          = SHARED_SYSTEM_STATE_SLEEP;
+    g_app.prevState             = SHARED_SYSTEM_STATE_SLEEP;
+    g_app.activeProfileIdx      = SHARED_PROFILE_INDEX_INVALID;
+    g_app.rfidTransitionLatched = FALSE;
 
     /* 초기화 시점에 SS_PROFILE_TABLE 1회 수신 시도, 20초 타임아웃 */
     (void)App_PollProfileTableAtInit(20000U);
 
-    rfidIn.enable_flag   = FALSE;
     rfidIn.register_flag = FALSE;
     rfidIn.profile_table = &g_app.profileTable;
 
@@ -606,8 +618,8 @@ void AppTask10ms(void)
 {
     App_Manager_Rfid_Input_t in;
     uint32 nowMs = App_GetNowMs();
+    uint8  requestedProfileIdx;
 
-    in.enable_flag   = App_IsRfidEnabledState(g_app.currentState);
     in.register_flag = FALSE;
     in.profile_table = &g_app.profileTable;
 
@@ -615,24 +627,49 @@ void AppTask10ms(void)
 
     if (g_app.rfidOut.event == APP_MANAGER_RFID_EVENT_SUCCESS)
     {
-        if ((g_app.rfidOut.uid_idx >= 0) &&
-            ((uint8)g_app.rfidOut.uid_idx < SHARED_PROFILE_NORMAL_COUNT))
+        if (g_app.rfidOut.uid_idx >= SHARED_PROFILE_NORMAL_COUNT)
         {
-            g_app.activeProfileIdx = (uint8)g_app.rfidOut.uid_idx;
+            UART_Printf("[RFID] success invalid idx=%u\r\n", g_app.rfidOut.uid_idx);
+        }
+        else if (g_app.currentState == SHARED_SYSTEM_STATE_SLEEP)
+        {
+            requestedProfileIdx = g_app.rfidOut.uid_idx;
+
+            if (g_app.rfidTransitionLatched == FALSE)
+            {
+                g_app.activeProfileIdx      = requestedProfileIdx;
+                g_app.txProfileIdxValue     = requestedProfileIdx;
+                g_app.txProfileIdxRequested = TRUE;
+                g_app.rfidTransitionLatched = TRUE;
+
+                UART_Printf("[RFID] auth idx=%u\r\n", requestedProfileIdx);
+            }
+            else
+            {
+                UART_Printf("[RFID] auth ignored (latched)\r\n");
+            }
+        }
+        else if (g_app.currentState == SHARED_SYSTEM_STATE_ACTIVATED)
+        {
+            requestedProfileIdx = g_app.rfidOut.uid_idx;
+
+            if (g_app.rfidTransitionLatched == FALSE)
+            {
+                g_app.txProfileIdxValue     = requestedProfileIdx;
+                g_app.txProfileIdxRequested = TRUE;
+                g_app.rfidTransitionLatched = TRUE;
+
+                UART_Printf("[RFID] shutdown req idx=%u\r\n", requestedProfileIdx);
+            }
+            else
+            {
+                UART_Printf("[RFID] shutdown ignored (latched)\r\n");
+            }
         }
         else
         {
-            g_app.activeProfileIdx = SHARED_PROFILE_INDEX_DEFAULT;
+            UART_Printf("[RFID] success ignored st=%u\r\n", g_app.currentState);
         }
-
-        UART_Printf("[RFID] success idx=%u\r\n", g_app.activeProfileIdx);
-
-        g_app.txProfileIdxValue     = g_app.activeProfileIdx;
-        g_app.txProfileIdxRequested = TRUE;
-
-        /* 필요 시 활성화
-        g_app.txProfileTableRequested = TRUE;
-        */
     }
     else if (g_app.rfidOut.event == APP_MANAGER_RFID_EVENT_FAIL)
     {
@@ -640,7 +677,25 @@ void AppTask10ms(void)
     }
     else if (g_app.rfidOut.event == APP_MANAGER_RFID_EVENT_LOCKOUT)
     {
-        UART_Printf("[RFID] lockout\r\n");
+        if (g_app.currentState == SHARED_SYSTEM_STATE_SLEEP)
+        {
+            if (g_app.rfidTransitionLatched == FALSE)
+            {
+                g_app.txProfileIdxValue     = SHARED_PROFILE_INDEX_INVALID;
+                g_app.txProfileIdxRequested = TRUE;
+                g_app.rfidTransitionLatched = TRUE;
+
+                UART_Printf("[RFID] lockout -> denied req\r\n");
+            }
+            else
+            {
+                UART_Printf("[RFID] lockout ignored (latched)\r\n");
+            }
+        }
+        else
+        {
+            UART_Printf("[RFID] lockout st=%u\r\n", g_app.currentState);
+        }
     }
 
     App_HandleCanTx10ms();
@@ -725,7 +780,7 @@ static void App_HandleCanRx1ms(void)
                          sizeof(state_msg));
 
             /* SS 시스템 상태 반영 */
-            g_app.currentState = state_msg.current_state;
+            App_UpdateSystemState(state_msg.current_state);
 
             UART_Printf("[RX] SS_STATE current_state=%u\r\n",
                         state_msg.current_state);
@@ -887,7 +942,7 @@ static boolean App_PollProfileTableAtInit(uint32 timeout_ms)
                              rx_bytes,
                              sizeof(state_msg));
 
-                g_app.currentState = state_msg.current_state;
+                App_UpdateSystemState(state_msg.current_state);
 
                 UART_Printf("[INIT][RX] SS_STATE current_state=%u\r\n",
                             state_msg.current_state);

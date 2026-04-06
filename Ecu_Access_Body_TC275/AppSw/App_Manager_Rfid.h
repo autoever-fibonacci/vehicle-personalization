@@ -17,7 +17,6 @@ typedef enum
 /* 외부 입력: 기능 활성 여부 / 등록 모드 여부 / 프로필 테이블 */
 typedef struct
 {
-    boolean                      enable_flag;
     boolean                      register_flag;
     const Shared_Profile_Table_t *profile_table;
 } App_Manager_Rfid_Input_t;

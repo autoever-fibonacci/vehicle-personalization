@@ -199,14 +199,12 @@ void App_Manager_Rfid_Init(uint32 now_ms)
  * 입력
  * - now_ms : 현재 시스템 시간(ms)
  * - input  : 외부 입력 구조체
- *            enable_flag   : RFID 기능 활성 여부
  *            register_flag : 현재 UID를 등록 모드로 처리할지 여부
  *
  * 출력
  * - 이벤트 정보와 UID 정보를 담은 출력 구조체
  *
  * 동작 개요
- * - enable_flag가 꺼져 있으면 비활성화 상태 유지
  * - 카드가 연속 검출되면 UID를 읽어 등록/검증 수행
  * - 성공/실패 결과를 피드백 상태로 일정 시간 유지
  * - 같은 카드 재인식을 막기 위해 태그 제거를 기다림
@@ -217,19 +215,16 @@ void  App_Manager_Rfid_Run(uint32 now_ms,
                            App_Manager_Rfid_Output_t *out)
 {
     Mfrc522_Uid                 uid;
-    boolean                     enable_flag;
     boolean                     register_flag;
     const Shared_Profile_Table_t *profile_table;
 
     *out = App_Manager_Rfid_MakeOutput(APP_MANAGER_RFID_EVENT_NONE, NULL_PTR, FALSE, 0xFF);
 
-    enable_flag   = FALSE;
     register_flag = FALSE;
     profile_table = NULL_PTR;
 
     if (input != NULL_PTR)
     {
-        enable_flag   = input->enable_flag;
         register_flag = input->register_flag;
         profile_table = input->profile_table;
     }
@@ -247,13 +242,10 @@ void  App_Manager_Rfid_Run(uint32 now_ms,
     case APP_MANAGER_RFID_STATE_IDLE:
         /*
          * RFID 기능 비활성 기본 상태
-         * enable_flag가 들어오면 polling 시작
          */
-        if (enable_flag != FALSE)
-        {
-            g_app_manager_rfid_context.detect_count = 0U;
-            App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_POLLING, now_ms);
-        }
+        App_Manager_Rfid_ResetContext(now_ms);
+        g_app_manager_rfid_context.detect_count = 0U;
+        App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_POLLING, now_ms);
         break;
 
     case APP_MANAGER_RFID_STATE_POLLING:
@@ -265,13 +257,7 @@ void  App_Manager_Rfid_Run(uint32 now_ms,
          * - 연속 APP_MANAGER_RFID_POLL_CONFIRM_COUNT회 감지될 때만
          *   실제 UID 읽기 상태로 진입
          */
-        if (enable_flag == FALSE)
-        {
-            /* 외부에서 기능을 끄면 초기화 후 IDLE 복귀 */
-            App_Manager_Rfid_ResetContext(now_ms);
-            App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_IDLE, now_ms);
-        }
-        else if (App_Manager_Rfid_IsCardPresent() == TRUE)
+        if (App_Manager_Rfid_IsCardPresent() == TRUE)
         {
             /* 카드가 검출되면 연속 감지 카운트 증가 */
             g_app_manager_rfid_context.detect_count++;
@@ -299,13 +285,7 @@ void  App_Manager_Rfid_Run(uint32 now_ms,
          * 2. 등록 모드인가?
          * 3. 둘 다 아니면 인증 실패
          */
-        if (enable_flag == FALSE)
-        {
-            /* 외부 비활성화 요청 시 즉시 종료 */
-            App_Manager_Rfid_ResetContext(now_ms);
-            App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_IDLE, now_ms);
-        }
-        else if (App_Manager_Rfid_ReadCardUid(&uid) == TRUE)
+        if (App_Manager_Rfid_ReadCardUid(&uid) == TRUE)
         {
             UART_Printf("[App_Manager_Rfid_Run] uid=%02X:%02X\r\n",
             uid.uid[0],
@@ -414,12 +394,7 @@ void  App_Manager_Rfid_Run(uint32 now_ms,
          * 성공 피드백 유지 상태
          * 일정 시간 유지 후 태그 제거 대기 상태로 이동
          */
-        if (enable_flag == FALSE)
-        {
-            App_Manager_Rfid_ResetContext(now_ms);
-            App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_IDLE, now_ms);
-        }
-        else if (now_ms >= g_app_manager_rfid_context.state_deadline_ms)
+        if (now_ms >= g_app_manager_rfid_context.state_deadline_ms)
         {
             App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_WAIT_TAG_REMOVED, now_ms);
         }
@@ -430,12 +405,7 @@ void  App_Manager_Rfid_Run(uint32 now_ms,
          * 실패 피드백 유지 상태
          * 일정 시간 유지 후 태그 제거 대기 상태로 이동
          */
-        if (enable_flag == FALSE)
-        {
-            App_Manager_Rfid_ResetContext(now_ms);
-            App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_IDLE, now_ms);
-        }
-        else if (now_ms >= g_app_manager_rfid_context.state_deadline_ms)
+        if (now_ms >= g_app_manager_rfid_context.state_deadline_ms)
         {
             App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_WAIT_TAG_REMOVED, now_ms);
         }
@@ -444,16 +414,8 @@ void  App_Manager_Rfid_Run(uint32 now_ms,
     case APP_MANAGER_RFID_STATE_WAIT_TAG_REMOVED:
         /*
          * 같은 카드를 계속 대고 있는 동안은 재인식을 막는 상태
-         *
-         * 카드가 완전히 제거되면 다음 인식을 허용하기 위해
-         * polling 상태로 돌아간다.
          */
-        if (enable_flag == FALSE)
-        {
-            App_Manager_Rfid_ResetContext(now_ms);
-            App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_IDLE, now_ms);
-        }
-        else if (App_Manager_Rfid_IsCardPresent() == FALSE)
+        if (App_Manager_Rfid_IsCardPresent() == FALSE)
         {
             /* 카드가 제거되면 UID/감지 카운트 초기화 후 polling 복귀 */
             g_app_manager_rfid_context.has_current_uid = FALSE;
@@ -471,12 +433,7 @@ void  App_Manager_Rfid_Run(uint32 now_ms,
          * lockout 시간 동안은 인증을 받지 않고,
          * 시간이 지나면 다시 polling 상태로 복귀한다.
          */
-        if (enable_flag == FALSE)
-        {
-            App_Manager_Rfid_ResetContext(now_ms);
-            App_Manager_Rfid_SetState(APP_MANAGER_RFID_STATE_IDLE, now_ms);
-        }
-        else if (now_ms >= g_app_manager_rfid_context.lockout_deadline_ms)
+        if (now_ms >= g_app_manager_rfid_context.lockout_deadline_ms)
         {
             /* lockout 해제 시 내부 상태 초기화 */
             g_app_manager_rfid_context.fail_count      = 0U;
