@@ -507,7 +507,11 @@ static void App_HandleButtons1ms(void)
  * ------------------------------------------------------------------------------------------------- */
 static void App_HandleRfid10ms(void)
 {
+    App_Manager_Rfid_Input_t in;
+    in.register_flag = FALSE;
+    in.profile_table = &g_app.profileTable;
     uint32 nowMs = App_GetNowMs();
+    
     App_Manager_Rfid_Run(nowMs, &in, &g_app.rfidOut);
     
     uint8 requestedProfileIdx;
@@ -764,11 +768,6 @@ void AppTask1ms(void)
 
 void AppTask10ms(void)
 {
-    App_Manager_Rfid_Input_t in;
-
-    in.register_flag = FALSE;
-    in.profile_table = &g_app.profileTable;
-
     App_HandleCanTx10ms();
 }
 
