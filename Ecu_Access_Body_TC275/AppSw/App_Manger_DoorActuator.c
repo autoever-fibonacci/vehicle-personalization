@@ -28,12 +28,22 @@ void DoorActuator_Init(DoorActuator_t *d, const DoorActuatorConfig_t *cfg)
 
 void DoorActuator_Open(DoorActuator_t *d)
 {
+    if (d->state == DOOR_STATE_OPEN)
+    {
+        return;
+    }
+
     Servo_SetAngle(d->servo, d->openAngleDeg);
     d->state = DOOR_STATE_OPEN;
 }
 
 void DoorActuator_Close(DoorActuator_t *d)
 {
+    if (d->state == DOOR_STATE_CLOSED)
+    {
+        return;
+    }
+
     Servo_SetAngle(d->servo, d->closeAngleDeg);
     d->state = DOOR_STATE_CLOSED;
 }
