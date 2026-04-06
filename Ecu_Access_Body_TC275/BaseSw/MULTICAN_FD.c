@@ -3,6 +3,7 @@
 /*********************************************************************************************************************/
 #include "MULTICAN_FD.h"
 #include "Shared_Can_Message.h"
+#include "UART_Config.h"
 
 #include <string.h>
 
@@ -20,6 +21,9 @@ static void Multican_InitNode(void);
 static void Multican_InitRxMsgObj(void);
 static void Multican_InitTxMsgObj(void);
 static void Multican_EnableFdBrsOnMo(uint8 msgObjId);
+static const char *Multican_GetProfileTableRxName(uint32 message_id);
+static void        Multican_LogProfileTableRxCompact(uint32        message_id,
+                                                     const uint32 *rx_data);
 
 /*********************************************************************************************************************/
 /*--------------------------------------------------Global Variables-------------------------------------------------*/
@@ -41,6 +45,103 @@ void initMultican(void)
 
     (void)memset(g_multican.txData, 0, sizeof(g_multican.txData));
     (void)memset(g_multican.rxData, 0, sizeof(g_multican.rxData));
+}
+
+static const char *Multican_GetProfileTableRxName(uint32 message_id)
+{
+    switch (message_id)
+    {
+        case SHARED_CAN_MSG_ID_SS_PROFILE_TABLE:
+        {
+            return "SS_PT";
+        }
+
+        case SHARED_CAN_MSG_ID_AB_PROFILE_TABLE:
+        {
+            return "AB_PT";
+        }
+
+        case SHARED_CAN_MSG_ID_HH_PROFILE_TABLE:
+        {
+            return "HH_PT";
+        }
+
+        default:
+        {
+            return NULL_PTR;
+        }
+    }
+}
+
+static void Multican_LogProfileTableRxCompact(uint32        message_id,
+                                              const uint32 *rx_data)
+{
+    static const char hex_chars[] = "0123456789ABCDEF";
+    const char       *rx_name;
+    const uint8      *raw_bytes;
+    char              line[120];
+    uint8             line_idx;
+    uint8             byte_idx;
+
+    if (rx_data == NULL_PTR)
+    {
+        return;
+    }
+
+    rx_name = Multican_GetProfileTableRxName(message_id);
+    if (rx_name == NULL_PTR)
+    {
+        return;
+    }
+
+    raw_bytes = (const uint8 *)rx_data;
+    line_idx  = 0U;
+
+    line[line_idx++] = '[';
+    line[line_idx++] = 'M';
+    line[line_idx++] = 'C';
+    line[line_idx++] = ']';
+    line[line_idx++] = '[';
+    line[line_idx++] = 'R';
+    line[line_idx++] = 'X';
+    line[line_idx++] = ']';
+    line[line_idx++] = ' ';
+
+    while ((*rx_name != '\0') && (line_idx < (uint8)(sizeof(line) - 1U)))
+    {
+        line[line_idx++] = *rx_name;
+        rx_name++;
+    }
+
+    if (line_idx < (uint8)(sizeof(line) - 1U))
+    {
+        line[line_idx++] = ' ';
+    }
+
+    for (byte_idx = 0U; byte_idx < SHARED_CAN_MSG_SIZE_PROFILE_TABLE; ++byte_idx)
+    {
+        if ((byte_idx != 0U) && ((byte_idx % SHARED_PROFILE_SIZE_BYTE) == 0U))
+        {
+            if (line_idx >= (uint8)(sizeof(line) - 2U))
+            {
+                break;
+            }
+
+            line[line_idx++] = '|';
+        }
+
+        if (line_idx >= (uint8)(sizeof(line) - 3U))
+        {
+            break;
+        }
+
+        line[line_idx++] = hex_chars[(raw_bytes[byte_idx] >> 4U) & 0x0FU];
+        line[line_idx++] = hex_chars[raw_bytes[byte_idx] & 0x0FU];
+    }
+
+    line[line_idx] = '\0';
+
+    UART_Printf("%s\r\n", line);
 }
 
 static void Multican_EnableTransceiver(void)
@@ -206,6 +307,8 @@ boolean receiveCanMessage(uint32 *rxData)
     {
         rxData[idx] = g_multican.rxData[idx];
     }
+
+    Multican_LogProfileTableRxCompact(g_multican.rxMsg.id, g_multican.rxData);
 
     return TRUE;
 }
