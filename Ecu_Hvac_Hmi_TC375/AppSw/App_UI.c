@@ -172,7 +172,7 @@ static void joyutask()
   switch (uistate)
   {
   case ST_PROFILE_SEL:
-    if (--profsel == 0) profsel = 5;
+    if (--profsel == 0) profsel = 3;
     break;
   case ST_AMB_COL_SEL:
     App_Ambient_changeColor(-20);
@@ -202,7 +202,7 @@ static void joydtask()
   switch (uistate)
   {
   case ST_PROFILE_SEL:
-    if (++profsel == 6) profsel = 1;
+    if (++profsel == 4) profsel = 1;
     break;
   case ST_AMB_COL_SEL:
     App_Ambient_changeColor(20);
