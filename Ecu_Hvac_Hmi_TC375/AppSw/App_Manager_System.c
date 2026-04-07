@@ -100,6 +100,7 @@ void App_Manager_System_Init(void)
   g_app_manager_system_context.state_enter_time_ms = 0U;
   g_app_manager_system_context.active_profile_index = SHARED_PROFILE_INDEX_INVALID;
   g_app_manager_system_context.setup_profile_loaded = FALSE;
+  App_Manager_System_UpdateState(SHARED_SYSTEM_STATE_ACTIVATED);
   App_PollProfileTableAtInit(20000);
 }
 
