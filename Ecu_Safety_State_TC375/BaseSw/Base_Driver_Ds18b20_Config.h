@@ -10,8 +10,8 @@
 /*------------------------------------------------------Macros-------------------------------------------------------*/
 /*********************************************************************************************************************/
 #define BASE_DRIVER_DS18B20_MAX_SENSORS         1U
-#define BASE_DRIVER_DS18B20_GPIO                (&MODULE_P33)
-#define BASE_DRIVER_DS18B20_PIN                 10U
+#define BASE_DRIVER_DS18B20_GPIO                (&MODULE_P02)
+#define BASE_DRIVER_DS18B20_PIN                 1U
 #define BASE_DRIVER_DS18B20_CONVERT_TIMEOUT_MS  5000U
 
 #endif /* BASE_DRIVER_DS18B20_CONFIG_H_ */
