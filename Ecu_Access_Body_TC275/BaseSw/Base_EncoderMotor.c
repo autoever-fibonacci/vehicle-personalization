@@ -5,14 +5,15 @@ MotorInstance_t g_motorB;
 
 static boolean s_gtmInit = FALSE;
 
+/* ------------------------------------------------------------------ */
 static void initCommonMotorFields(MotorInstance_t *m, const MotorConfig_t *cfg)
 {
-    m->brakePort        = cfg->brakePort;
-    m->brakePin         = cfg->brakePin;
-    m->dirPort          = cfg->dirPort;
-    m->dirPin           = cfg->dirPin;
-    m->brakeActiveHigh  = cfg->brakeActiveHigh;
-    m->dirForwardHigh   = cfg->dirForwardHigh;
+    m->brakePort       = cfg->brakePort;
+    m->brakePin        = cfg->brakePin;
+    m->dirPort         = cfg->dirPort;
+    m->dirPin          = cfg->dirPin;
+    m->brakeActiveHigh = cfg->brakeActiveHigh;
+    m->dirForwardHigh  = cfg->dirForwardHigh;
 
     m->singleChPort      = cfg->encPort;
     m->singleChPin       = cfg->encPin;
@@ -23,21 +24,21 @@ static void initCommonMotorFields(MotorInstance_t *m, const MotorConfig_t *cfg)
     m->tickAcc = 0;
     m->move.originStartTicks = 0;
 
-    m->move.state              = MOTOR_MOVE_IDLE;
-    m->move.startTicks         = 0;
-    m->move.targetTicks        = 0;
-    m->move.finalTargetTicks   = 0;
-    m->move.requestedDuty      = 0U;
-    m->move.appliedDuty        = 0U;
-    m->move.timeoutTicks       = 0U;
-    m->move.startStm           = 0U;
-    m->move.boostUntilStm      = 0U;
-    m->move.cmdDir             = DIR_STOPPED;
-    m->move.toleranceTicks     = MOTOR_DEFAULT_TOLERANCE_TICKS;
-    m->move.correctionEnabled  = TRUE;
-    m->move.correctionCount    = 0U;
+    m->move.state             = MOTOR_MOVE_IDLE;
+    m->move.startTicks        = 0;
+    m->move.targetTicks       = 0;
+    m->move.finalTargetTicks  = 0;
+    m->move.requestedDuty     = 0U;
+    m->move.appliedDuty       = 0U;
+    m->move.timeoutTicks      = 0U;
+    m->move.startStm          = 0U;
+    m->move.boostUntilStm     = 0U;
+    m->move.cmdDir            = DIR_STOPPED;
+    m->move.toleranceTicks    = MOTOR_DEFAULT_TOLERANCE_TICKS;
+    m->move.correctionEnabled = TRUE;
+    m->move.correctionCount   = 0U;
     m->move.correctionMaxCount = MOTOR_CORRECTION_MAX_COUNT;
-    m->move.correctionDuty     = MOTOR_CORRECTION_DUTY;
+    m->move.correctionDuty    = MOTOR_CORRECTION_DUTY;
 }
 
 static void initMotorOutputsAndPwm(MotorInstance_t *m, const MotorConfig_t *cfg)
@@ -108,20 +109,19 @@ static void Motor_StartDrive(MotorInstance_t *m,
         {
             initDuty = MOTOR_START_BOOST_DUTY;
         }
-
-        m->move.boostUntilStm =
-            now + IfxStm_getTicksFromMilliseconds(BSP_DEFAULT_TIMER, MOTOR_START_BOOST_MS);
+        m->move.boostUntilStm = now + IfxStm_getTicksFromMilliseconds(BSP_DEFAULT_TIMER, MOTOR_START_BOOST_MS);
     }
     else
     {
         m->move.boostUntilStm = now;
     }
 
-    m->move.cmdDir        = dir;
-    m->move.state         = state;
+    m->move.cmdDir       = dir;
+    m->move.state        = state;
     m->move.requestedDuty = duty;
-    m->move.timeoutTicks  = IfxStm_getTicksFromMilliseconds(BSP_DEFAULT_TIMER, timeoutMs);
-    m->move.startStm      = now;
+    m->move.timeoutTicks = IfxStm_getTicksFromMilliseconds(BSP_DEFAULT_TIMER, timeoutMs);
+    m->move.startStm     = now;
+    m->move.boostUntilStm = now + IfxStm_getTicksFromMilliseconds(BSP_DEFAULT_TIMER, MOTOR_START_BOOST_MS);
 
     Motor_SetDuty(m, 0U);
     Motor_Brake(m);
@@ -142,11 +142,13 @@ static boolean Motor_TryStartCorrection(MotorInstance_t *m, sint32 error)
 
     if (error > m->move.toleranceTicks)
     {
+        /* overshoot: target+tolerance boundary까지 backward */
         correctionTicks = -(error - m->move.toleranceTicks);
         corrDir = DIR_BACKWARD;
     }
     else if (error < -m->move.toleranceTicks)
     {
+        /* undershoot: target-tolerance boundary까지 forward */
         correctionTicks = (-error) - m->move.toleranceTicks;
         corrDir = DIR_FORWARD;
     }
@@ -171,6 +173,7 @@ static boolean Motor_TryStartCorrection(MotorInstance_t *m, sint32 error)
     return TRUE;
 }
 
+/* ------------------------------------------------------------------ */
 void Motor_Init(MotorInstance_t *m, const MotorConfig_t *cfg)
 {
     initCommonMotorFields(m, cfg);
@@ -181,7 +184,8 @@ void Motor_Init(MotorInstance_t *m, const MotorConfig_t *cfg)
     Motor_ResetTicks(m);
 }
 
-/* Single-channel polling: count only rising edges and infer sign from commanded direction. */
+/* ------------------------------------------------------------------ */
+/* B와 동일한 polling 방식: rising edge만 count */
 void Motor_EncoderService(MotorInstance_t *m)
 {
     uint8 cur = IfxPort_getPinState(m->singleChPort, m->singleChPin);
@@ -241,6 +245,7 @@ MotorDirection_t Motor_GetDirection(MotorInstance_t *m)
     return m->lastDirCmd;
 }
 
+/* ------------------------------------------------------------------ */
 void Motor_SetDirection(MotorInstance_t *m, MotorDirection_t dir)
 {
     m->lastDirCmd = dir;
@@ -277,26 +282,12 @@ void Motor_Coast(MotorInstance_t *m)
     else                    IfxPort_setPinHigh(m->brakePort, m->brakePin);
 }
 
+/* ------------------------------------------------------------------ */
 boolean Motor_MoveStart(MotorInstance_t *m,
                         sint32 ticks,
                         uint16 duty,
                         uint32 timeoutMs,
                         sint32 toleranceTicks)
-{
-    return Motor_MoveStartEx(m,
-                             ticks,
-                             duty,
-                             timeoutMs,
-                             toleranceTicks,
-                             TRUE);
-}
-
-boolean Motor_MoveStartEx(MotorInstance_t *m,
-                          sint32 ticks,
-                          uint16 duty,
-                          uint32 timeoutMs,
-                          sint32 toleranceTicks,
-                          boolean useBoost)
 {
     MotorDirection_t dir;
 
@@ -314,17 +305,17 @@ boolean Motor_MoveStartEx(MotorInstance_t *m,
 
     dir = (ticks > 0) ? DIR_FORWARD : DIR_BACKWARD;
 
-    m->move.startTicks         = Motor_GetTicks(m);
-    m->move.originStartTicks   = m->move.startTicks;
-    m->move.targetTicks        = ticks;
-    m->move.finalTargetTicks   = ticks;
-    m->move.toleranceTicks     = toleranceTicks;
-    m->move.correctionEnabled  = TRUE;
-    m->move.correctionCount    = 0U;
+    m->move.startTicks        = Motor_GetTicks(m);
+    m->move.originStartTicks  = m->move.startTicks;
+    m->move.targetTicks       = ticks;
+    m->move.finalTargetTicks  = ticks;
+    m->move.toleranceTicks    = toleranceTicks;
+    m->move.correctionEnabled = TRUE;
+    m->move.correctionCount   = 0U;
     m->move.correctionMaxCount = MOTOR_CORRECTION_MAX_COUNT;
-    m->move.correctionDuty     = MOTOR_CORRECTION_DUTY;
+    m->move.correctionDuty    = MOTOR_CORRECTION_DUTY;
 
-    Motor_StartDrive(m, dir, duty, timeoutMs, MOTOR_MOVE_RUNNING, useBoost);
+    Motor_StartDrive(m, dir, duty, timeoutMs, MOTOR_MOVE_RUNNING, TRUE);
 
     return TRUE;
 }
@@ -334,7 +325,6 @@ void Motor_MoveService(MotorInstance_t *m)
     sint32 cur;
     sint32 moved;
     sint32 finalError;
-    sint32 remaining;
     uint32 now;
     uint32 elapsed;
     uint16 tgtDuty;
@@ -350,15 +340,6 @@ void Motor_MoveService(MotorInstance_t *m)
     now     = IfxStm_get(BSP_DEFAULT_TIMER);
     elapsed = now - m->move.startStm;
     tgtDuty = m->move.requestedDuty;
-    finalError = (cur - m->move.originStartTicks) - m->move.finalTargetTicks;
-
-    if ((((finalError >= 0) ? finalError : -finalError)) <= m->move.toleranceTicks)
-    {
-        Motor_Brake(m);
-        m->move.appliedDuty = 0U;
-        m->move.state = MOTOR_MOVE_DONE;
-        return;
-    }
 
     if ((m->move.targetTicks > 0 && moved >= m->move.targetTicks) ||
         (m->move.targetTicks < 0 && moved <= m->move.targetTicks))
@@ -366,9 +347,14 @@ void Motor_MoveService(MotorInstance_t *m)
         Motor_Brake(m);
         m->move.appliedDuty = 0U;
 
-        if (Motor_TryStartCorrection(m, finalError))
+        finalError = (Motor_GetTicks(m) - m->move.originStartTicks) - m->move.finalTargetTicks;
+
+        if (m->move.state == MOTOR_MOVE_RUNNING)
         {
-            return;
+            if (Motor_TryStartCorrection(m, finalError))
+            {
+                return;
+            }
         }
 
         m->move.state = MOTOR_MOVE_DONE;
@@ -388,12 +374,6 @@ void Motor_MoveService(MotorInstance_t *m)
     {
         Motor_Brake(m);
         m->move.appliedDuty = 0U;
-
-        if (Motor_TryStartCorrection(m, finalError))
-        {
-            return;
-        }
-
         m->move.state = MOTOR_MOVE_TIMEOUT;
         return;
     }
@@ -402,9 +382,10 @@ void Motor_MoveService(MotorInstance_t *m)
     {
         if (tgtDuty < MOTOR_START_BOOST_DUTY) tgtDuty = MOTOR_START_BOOST_DUTY;
     }
+    /* slowdown 비활성화
     else
     {
-        remaining = (m->move.targetTicks > 0)
+        sint32 remaining = (m->move.targetTicks > 0)
             ? (m->move.targetTicks - moved)
             : (moved - m->move.targetTicks);
 
@@ -416,7 +397,7 @@ void Motor_MoveService(MotorInstance_t *m)
             tgtDuty = slowed;
         }
     }
-
+     */
     if (tgtDuty != m->move.appliedDuty)
     {
         m->move.appliedDuty = tgtDuty;
@@ -430,28 +411,8 @@ boolean Motor_MoveToTick(MotorInstance_t *m,
                          uint32 timeoutMs,
                          sint32 toleranceTicks)
 {
-    return Motor_MoveToTickEx(m,
-                              absoluteTargetTick,
-                              duty,
-                              timeoutMs,
-                              toleranceTicks,
-                              TRUE);
-}
-
-boolean Motor_MoveToTickEx(MotorInstance_t *m,
-                           sint32 absoluteTargetTick,
-                           uint16 duty,
-                           uint32 timeoutMs,
-                           sint32 toleranceTicks,
-                           boolean useBoost)
-{
     sint32 relativeTicks = absoluteTargetTick - Motor_GetTicks(m);
-    return Motor_MoveStartEx(m,
-                             relativeTicks,
-                             duty,
-                             timeoutMs,
-                             toleranceTicks,
-                             useBoost);
+    return Motor_MoveStart(m, relativeTicks, duty, timeoutMs, toleranceTicks);
 }
 
 boolean Motor_IsBusy(MotorInstance_t *m)

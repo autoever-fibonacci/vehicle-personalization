@@ -18,6 +18,7 @@
 #include "Shared_Profile.h"
 #include "Shared_System_State.h"
 #include "Shared_Can_Message.h"
+#include "Shared_Util_Time.h"
 
 #include "MULTICAN_FD.h"
 
@@ -48,34 +49,34 @@
 /* -------------------------------------------------------------------------------------------------
  * Motion / actuator tuning
  * ------------------------------------------------------------------------------------------------- */
-#define MIRROR_MIN_TICK              (0U)
-#define MIRROR_MAX_TICK              (255U)
-#define MIRROR_JOG_STEP_TICK         (1)
+#define MIRROR_MIN_TICK              (0)
+#define MIRROR_MAX_TICK              (255)
+#define MIRROR_JOG_STEP_TICK         (5)
 #define MIRROR_JOG_DUTY              (550U)
 #define MIRROR_JOG_TIMEOUT_MS        (300U)
-#define MIRROR_JOG_TOL_TICK          (2)
+#define MIRROR_JOG_TOL_TICK          (3)
 #define MIRROR_JOG_ISSUE_MS          (20U)
-#define MIRROR_RESTORE_DUTY          (550U)
+#define MIRROR_RESTORE_DUTY          (600U)
 #define MIRROR_RESTORE_TIMEOUT_MS    (6000U)
-#define MIRROR_RESTORE_TOL_TICK      (2)
+#define MIRROR_RESTORE_TOL_TICK      (5)
 
-#define SEAT_MIN_TICK                (0U)
-#define SEAT_MAX_TICK                (255U)
-#define SEAT_JOG_STEP_TICK           (1)
+#define SEAT_MIN_TICK                (0)
+#define SEAT_MAX_TICK                (255)
+#define SEAT_JOG_STEP_TICK           (5)
 #define SEAT_JOG_DUTY                (550U)
 #define SEAT_JOG_TIMEOUT_MS          (300U)
-#define SEAT_JOG_TOL_TICK            (2)
+#define SEAT_JOG_TOL_TICK            (3)
 #define SEAT_JOG_ISSUE_MS            (20U)
-#define SEAT_RESTORE_DUTY            (550U)
+#define SEAT_RESTORE_DUTY            (600U)
 #define SEAT_RESTORE_TIMEOUT_MS      (6000U)
-#define SEAT_RESTORE_TOL_TICK        (2)
+#define SEAT_RESTORE_TOL_TICK        (5)
 
 #define DOOR_CLOSE_ANGLE_DEG         (0)
 #define DOOR_OPEN_ANGLE_DEG          (90)
 #define DOOR_INIT_ANGLE_DEG          (0)
 
-#define MIRROR_TICK_PER_PROFILE_UNIT (1U)
-#define SEAT_TICK_PER_PROFILE_UNIT   (1U)
+#define MIRROR_TICK_PER_PROFILE_UNIT (1)
+#define SEAT_TICK_PER_PROFILE_UNIT   (1)
 
 /* -------------------------------------------------------------------------------------------------
  * Runtime
@@ -118,6 +119,11 @@ volatile sint32               g_dbgMirrorTick;
 volatile sint32               g_dbgSeatTick;
 volatile DoorState_t          g_dbgDoorState;
 volatile sint16               g_dbgDoorAngle;
+static uint64                 max_elapsed_ms = 0;
+static uint64                 max_elapsed_ms1 = 0;
+static uint64                 max_elapsed_ms10 = 0;
+static uint64                 max_elapsed_ms100 = 0;
+static uint64                 max_elapsed_ms1000 = 0;
 
 /* -------------------------------------------------------------------------------------------------
  * Local Helper prototypes
@@ -365,7 +371,7 @@ static uint8 App_MirrorTickToProfile(sint32 mirrorTick)
 
 static uint8 App_SeatTickToProfile(sint32 seatTick)
 {
-    sint32 value = seatTick / SEAT_TICK_PER_PROFILE_UNIT;
+    sint32 value = (seatTick / SEAT_TICK_PER_PROFILE_UNIT) + 128;
 
     if (value < 0)   value = 0;
     if (value > 255) value = 255;
@@ -712,7 +718,8 @@ static void App_HandleStateEntry(void)
     case SHARED_SYSTEM_STATE_EMERGENCY:
     default:
         DoorActuator_Open(&g_app.door);
-        App_ApplyProfileByIndex(SHARED_PROFILE_INDEX_EMERGENCY);
+        PositionAxis_Stop(&g_app.seatAxis);
+        (void)PositionAxis_StartRestore(&g_app.seatAxis, SEAT_MIN_TICK);
         break;
     }
 }
@@ -793,27 +800,24 @@ void App_Init(void)
 
 void AppTask1ms(void)
 {
-    
-    App_HandleStateTransition1ms();
-
     PositionAxis_Task1ms(&g_app.mirrorAxis);
     PositionAxis_Task1ms(&g_app.seatAxis);
 
     App_HandleButtons1ms();
-    App_HandleRfid1ms();
-    App_UpdateDebug();
 }
 
 void AppTask10ms(void)
 {
-
+    App_HandleStateTransition1ms();
+    App_HandleRfid1ms();
+    App_UpdateDebug();
 }
 
 void AppTask100ms(void)
 {
-    App_HandleCanTx10ms();
     App_HandleCanRx1ms();
     App_HandleStateSteady100ms();
+    App_HandleCanTx10ms();
 }
 
 void AppTask1000ms(void)
@@ -836,28 +840,50 @@ void AppTask1000ms(void)
 
 void AppScheduling(void)
 {
+    uint64 elapsed_ms, elapsed_ms1, elapsed_ms10, elapsed_ms100, elapsed_ms1000;
+    uint64 now_us = Shared_Util_Time_GetNowUs();
     if (stSchedulingInfo.u8nuScheduling1msFlag != 0U)
     {
         stSchedulingInfo.u8nuScheduling1msFlag = 0U;
         AppTask1ms();
+        elapsed_ms1 = Shared_Util_Time_GetNowUs() - now_us;
     }
 
     if (stSchedulingInfo.u8nuScheduling10msFlag != 0U)
     {
         stSchedulingInfo.u8nuScheduling10msFlag = 0U;
         AppTask10ms();
+        elapsed_ms10 = Shared_Util_Time_GetNowUs() - now_us;
     }
 
     if (stSchedulingInfo.u8nuScheduling100msFlag != 0U)
     {
         stSchedulingInfo.u8nuScheduling100msFlag = 0U;
         AppTask100ms();
+        elapsed_ms100 = Shared_Util_Time_GetNowUs() - now_us;
     }
 
     if (stSchedulingInfo.u8nuScheduling1000msFlag != 0U)
     {
         stSchedulingInfo.u8nuScheduling1000msFlag = 0U;
         AppTask1000ms();
+        elapsed_ms1000 = Shared_Util_Time_GetNowUs() - now_us;
+    }
+    elapsed_ms = Shared_Util_Time_GetNowUs() - now_us;
+    if (max_elapsed_ms < elapsed_ms) {
+        max_elapsed_ms = elapsed_ms;
+    }
+    if (max_elapsed_ms1 < elapsed_ms1) {
+        max_elapsed_ms1 = elapsed_ms1;
+    }
+    if (max_elapsed_ms10 < elapsed_ms10) {
+        max_elapsed_ms10 = elapsed_ms10;
+    }
+    if (max_elapsed_ms100 < elapsed_ms100) {
+        max_elapsed_ms100 = elapsed_ms100;
+    }
+    if (max_elapsed_ms1000 < elapsed_ms1000) {
+        max_elapsed_ms1000 = elapsed_ms1000;
     }
 }
 
@@ -935,7 +961,7 @@ static void App_HandleCanRx1ms(void)
                 (profile_idx_msg.profile_index == SHARED_PROFILE_INDEX_INVALID))
             {
                 g_app.activeProfileIdx = profile_idx_msg.profile_index;
-
+                App_ApplyProfileByIndex(g_app.activeProfileIdx);
                 UART_Printf("[RX] HH_PROFILE_IDX profile_index=%u\r\n",
                             profile_idx_msg.profile_index);
             }

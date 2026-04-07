@@ -25,18 +25,12 @@ static boolean axisStartAbsoluteMove(PositionAxis_t *a,
                                      sint32 targetTick,
                                      uint16 duty,
                                      uint32 timeoutMs,
-                                     sint32 toleranceTicks,
-                                     boolean useBoost)
+                                     sint32 toleranceTicks)
 {
     Motor_ClearState(a->motor);
     targetTick = axisClampTick(a, targetTick);
 
-    if (!Motor_MoveToTickEx(a->motor,
-                            targetTick,
-                            duty,
-                            timeoutMs,
-                            toleranceTicks,
-                            useBoost))
+    if (!Motor_MoveToTick(a->motor, targetTick, duty, timeoutMs, toleranceTicks))
     {
         a->lastResult = AXIS_RESULT_REJECTED;
         return FALSE;
@@ -95,8 +89,7 @@ static void axisHandleRestoreToZero(PositionAxis_t *a)
                                   a->restoreTargetTick,
                                   a->restoreDuty,
                                   a->restoreTimeoutMs,
-                                  a->restoreToleranceTicks,
-                                  TRUE))
+                                  a->restoreToleranceTicks))
         {
             a->mode = AXIS_MODE_RESTORE_TO_TARGET;
             return;
@@ -179,8 +172,7 @@ static void axisHandleJog(PositionAxis_t *a, boolean positive)
                               nextTick,
                               a->jogDuty,
                               a->jogTimeoutMs,
-                              a->jogToleranceTicks,
-                              FALSE))
+                              a->jogToleranceTicks))
     {
         a->lastJogIssueStm = now;
     }
@@ -248,17 +240,16 @@ boolean PositionAxis_StartRestore(PositionAxis_t *a, sint32 targetTick)
     a->lastJogIssueStm   = 0U;
 
     if (!axisStartAbsoluteMove(a,
-                               a->restoreTargetTick,
+                               0,
                                a->restoreDuty,
                                a->restoreTimeoutMs,
-                               a->restoreToleranceTicks,
-                               TRUE))
+                               a->restoreToleranceTicks))
     {
         a->mode = AXIS_MODE_ERROR;
         return FALSE;
     }
 
-    a->mode = AXIS_MODE_RESTORE_TO_TARGET;
+    a->mode = AXIS_MODE_RESTORE_TO_ZERO;
     return TRUE;
 }
 
