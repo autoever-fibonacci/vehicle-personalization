@@ -8,3 +8,11 @@ uint32 Shared_Util_Time_GetNowMs(void)
 
     return (uint32)(ticks / (freq / 1000ULL));
 }
+
+uint64 Shared_Util_Time_GetNowUs(void)
+{
+    uint64 ticks = IfxStm_get(&MODULE_STM0);
+    uint64 freq  = (uint64)IfxStm_getFrequency(&MODULE_STM0);
+
+    return (uint32)(ticks / (freq / 1000000ULL));
+}

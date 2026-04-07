@@ -3,7 +3,9 @@
 
 #include "Ifx_Types.h"
 
-void AppScheduling(void);
-void App_Init(void);
+void App_Scheduler_Run(void);
+void App_Scheduler_Init(void);
+void App_Scheduler_IdxTxReq(void);
+void App_Scheduler_TableTxReq(void);
 
 #endif

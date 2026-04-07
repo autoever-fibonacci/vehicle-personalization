@@ -1,12 +1,20 @@
+/*********************************************************************************************************************/
+/*-----------------------------------------------------Includes------------------------------------------------------*/
+/*********************************************************************************************************************/
 #include "App_LCD.h"
 #include "IfxPort.h"
 #include "Ifx_Types.h"
+#include "Stm/Std/IfxStm.h"
 
-static uint8 BACKLIGHT = 0x8;
+/*********************************************************************************************************************/
+/*------------------------------------------------------Macros-------------------------------------------------------*/
+/*********************************************************************************************************************/
+// 명령어 비트필드
 #define ENABLE   0x4
 #define READMODE 0x2
 #define REGSEL   0x1
 
+// 명령어
 #define OP_FUNCSET   (uint8)0x28
 #define OP_RESET     (uint8)0x30
 #define OP_4BIT      (uint8)0x20
@@ -18,28 +26,38 @@ static uint8 BACKLIGHT = 0x8;
 #define OP_LOWERLINE (uint8)0xC0
 #define OP_RETURN    (uint8)0x02
 
+// 비트 추출
 #define UPPER4BIT(b) ((b) & 0xf0)
 #define LOWER4BIT(b) (((b) & 0x0f) << 4)
 
-#include "Stm/Std/IfxStm.h"
+/*********************************************************************************************************************/
+/*--------------------------------------------Private Variables/Constants--------------------------------------------*/
+/*********************************************************************************************************************/
+// 백라이트 비트필드
+static uint8 BACKLIGHT = 0x8;
 
-/**
- * @brief 마이크로초(us) 단위 블로킹 딜레이 함수
- * @param microSeconds 대기할 마이크로초 시간
- */
+/*********************************************************************************************************************/
+/*------------------------------------------------Function Prototypes------------------------------------------------*/
+/*********************************************************************************************************************/
+static void delay_us(uint32 microSeconds);
+static void writechar(char ch);
+static void writeoperation4bit(uint8 op);
+static void writeoperation(uint8 op);
+static void LCD_init_static(void);
+
+void App_Manager_LCD_Init(void);
+void LCD_clearScreen(void);
+void LCD_printString(char *str, LCD_line_e line);
+void LCD_lightoff(void);
+void LCD_lighton(void);
+
+/*********************************************************************************************************************/
+/*---------------------------------------------Function Implementations----------------------------------------------*/
+/*********************************************************************************************************************/
 static void delay_us(uint32 microSeconds)
 {
-  /* * 1. 시스템 타이머 모듈 선택
-   * CPU0에서 실행되는 코드라면 MODULE_STM0을 사용합니다.
-   * (예: CPU1인 경우 MODULE_STM1 사용)
-   * 보드 지원 패키지(BSP)가 설정되어 있다면 BSP_DEFAULT_TIMER 매크로를 권장합니다.
-   */
   Ifx_STM *stm = &MODULE_STM0;
-
-  /* 2. 현재 타이머 클럭 주파수를 바탕으로 해당 us에 필요한 틱(Tick) 수 계산 */
   uint32 ticks = (uint32)IfxStm_getTicksFromMicroseconds(stm, microSeconds);
-
-  /* 3. 계산된 틱 수만큼 대기 (Blocking) */
   IfxStm_waitTicks(stm, ticks);
 }
 
@@ -100,9 +118,9 @@ static void LCD_init_static(void)
 
 void App_Manager_LCD_Init(void)
 {
-  LCD_init_static();
-  LCD_init_static();
-  LCD_init_static();
+  LCD_init_static(), delay_us(1000);
+  LCD_init_static(), delay_us(1000);
+  LCD_init_static(), delay_us(1000);
 }
 
 void LCD_clearScreen(void)

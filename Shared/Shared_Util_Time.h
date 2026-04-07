@@ -4,6 +4,7 @@
 #include "Platform_Types.h"
 
 uint32 Shared_Util_Time_GetNowMs(void);
+uint64 Shared_Util_Time_GetNowUs(void);
 
 
-#endif;
+#endif
