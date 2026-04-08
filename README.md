@@ -54,6 +54,110 @@
 
 ---
 
+## 5. ECU 상세 명세: AURIX TC275 (Access & Body)
+
+Access & Body ECU는 사용자와의 접점(인터페이스)을 관리하며, 차량 도어 및 시트/미러 액추에이터의 물리적 제어를 담당합니다. 소프트웨어는 크게 **AppSW(Application)**와 **BaseSW(Base)** 계층으로 구분됩니다.
+
+### 5.1. Application Software Layer (AppSW)
+
+#### 🔑 RFID Manager (`App_Manager_Rfid.c/h`)
+사용자 인증 시퀀스와 보안 정책(Lockout)을 관리하는 상태 머신 기반 모듈입니다.
+
+* **주요 열거형(Enum) 및 구조체(Struct)**
+    * `App_Manager_Rfid_State_t`: RFID 내부 상태 (`IDLE`, `POLLING`, `VERIFY_UID`, `FEEDBACK_SUCCESS/FAIL`, `WAIT_TAG_REMOVED`, `LOCKOUT`)
+    * `App_Manager_Rfid_Event_t`: 외부 출력 이벤트 (`NONE`, `SUCCESS`, `FAIL`, `LOCKOUT`)
+    * `App_Manager_Rfid_Input_t`: `{ boolean register_flag, const Shared_Profile_Table_t *profile_table }`
+    * `App_Manager_Rfid_Output_t`: `{ App_Manager_Rfid_Event_t event, boolean uid_valid, uint8 uid_idx, Mfrc522_Uid uid }`
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `App_Manager_Rfid_Init` | 내부 DB, 컨텍스트 및 드라이버 초기화 | `uint32 now_ms` | `void` |
+| `App_Manager_Rfid_Run` | 카드 감지 및 UID 검증 로직 실행 | `uint32 now_ms, const App_Manager_Rfid_Input_t *input, App_Manager_Rfid_Output_t *out` | `void` |
+
+#### 🚪 Door Actuator Manager (`App_Manger_DoorActuator.c/h`)
+서보 모터를 이용하여 차량 도어의 물리적 개폐 상태를 추상화하여 제어합니다.
+
+* **주요 열거형(Enum) 및 구조체(Struct)**
+    * `DoorState_t`: 도어 상태 (`CLOSED`, `OPEN`, `PARTIAL`)
+    * `DoorActuator_t`: `{ ServoInstance_t *servo, sint16 closeAngleDeg, sint16 openAngleDeg, DoorState_t state }`
+    * `DoorActuatorConfig_t`: `{ ServoInstance_t *servo, sint16 closeAngleDeg, sint16 openAngleDeg, sint16 initAngleDeg }`
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `DoorActuator_Init` | 도어 인스턴스 및 초기 각도 설정 | `DoorActuator_t *d, const DoorActuatorConfig_t *cfg` | `void` |
+| `DoorActuator_Open` | 설정된 Open 각도로 서보 구동 | `DoorActuator_t *d` | `void` |
+| `DoorActuator_Close` | 설정된 Close 각도로 서보 구동 | `DoorActuator_t *d` | `void` |
+| `DoorActuator_SetAngle` | 특정 각도 제어 및 상태 업데이트 | `DoorActuator_t *d, sint16 angleDeg` | `void` |
+
+#### 💺 Position Axis Manager (`App_Manger_PositionAxis.c/h`)
+인코더 모터를 이용한 시트 및 사이드 미러의 정밀 위치 복원 및 수동 조그를 관리합니다.
+
+* **주요 열거형(Enum) 및 구조체(Struct)**
+    * `PositionAxisMode_t`: 축 동작 모드 (`IDLE`, `RESTORE_TO_ZERO`, `RESTORE_TO_TARGET`, `JOG_POSITIVE/NEGATIVE`, `ERROR`)
+    * `PositionAxisResult_t`: 동작 결과 (`NONE`, `DONE`, `TIMEOUT`, `WRONG_DIR`, `CANCELED`, `REJECTED`)
+    * `PositionAxis_t`: `{ MotorInstance_t *motor, sint32 min/maxTick, PositionAxisMode_t mode, ... }`
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `PositionAxis_Init` | 모터 핸들 및 제어 파라미터 초기화 | `PositionAxis_t *a, const PositionAxisConfig_t *cfg` | `void` |
+| `PositionAxis_Task1ms` | 1ms 주기 모터 제어 및 FSM 처리 | `PositionAxis_t *a` | `void` |
+| `PositionAxis_StartRestore` | 0점 경유 후 목표 위치 복원 시작 | `PositionAxis_t *a, sint32 targetTick` | `boolean` |
+| `PositionAxis_Stop` | 모든 모터 동작 즉시 중단 | `PositionAxis_t *a` | `void` |
+
+---
+
+### 5.2. Base Software Layer (BaseSW)
+
+#### 📡 QSPI Driver (`Base_Com_QSPI1.c/h`)
+RFID 모듈과의 SPI 통신을 담당하는 저수준 드라이버입니다.
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `Base_Com_Qspi1_Init` | QSPI1 모듈 및 채널(100kbps) 초기화 | `void` | `void` |
+| `Base_Com_Qspi1_Transfer` | 멀티 바이트 데이터 동기 송수신 | `const uint8 *tx, uint8 *rx, uint32 len` | `void` |
+
+#### 💳 MFRC522 Driver (`Base_Driver_Mfrc522.c/h`)
+RFID 리더 칩의 레지스터 제어 및 카드 통신 프로토콜을 수행합니다.
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `Base_Driver_Mfrc522_Init` | 칩 소프트 리셋 및 안테나 활성화 | `void` | `boolean` |
+| `Base_Driver_Mfrc522_ReadUid` | 카드 감지 및 UID(2바이트) 획득 | `Mfrc522_Uid *outUid` | `Mfrc522_Status` |
+
+#### ⚙️ Encoder Motor Driver (`Base_EncoderMotor.c/h`)
+GTM PWM을 이용한 속도 제어 및 GPIO 폴링 기반 인코더 카운팅을 수행합니다.
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `Motor_Init` | PWM 및 인코더/브레이크 핀 초기화 | `MotorInstance_t *m, const MotorConfig_t *cfg` | `void` |
+| `Motor_MoveStart` | 정밀 보정 기능을 포함한 상대 이동 시작 | `MotorInstance_t *m, sint32 ticks, uint16 duty, uint32 timeoutMs, sint32 toleranceTicks` | `boolean` |
+
+#### ⏲️ System Timer Driver (`Driver_Stm.c/h`)
+1ms 인터럽트를 통해 멀티레이트 스케줄링 플래그를 생성합니다.
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `Driver_Stm_Init` | 1ms 주기 STM 인터럽트 활성화 | `void` | `void` |
+| `STM_Int0Handler` | 1/10/100/1000ms 주기 플래그 생성 | `void` | `void (ISR)` |
+
+#### 🏎️ MultiCAN+ FD Driver (`MULTICAN_FD.c/h`)
+64바이트 롱 프레임을 지원하는 CAN FD 통신 드라이버입니다.
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `initMultican` | CAN FD 노드 및 메시지 오브젝트 초기화 | `void` | `void` |
+| `transmitCanMessage` | 64바이트 데이터 전송 (Busy-wait) | `uint32 txId, uint32 *pData` | `void` |
+
+---
+
+### 5.3. System Entry Point (`App.c`)
+각 주기별 태스크를 실제 호출하고 전체 시퀀스를 총괄합니다.
+
+* **스케줄링 구성**:
+    * `AppTask1ms`: 인코더 추적 및 버튼 조그 제어 (고속).
+    * `AppTask10ms`: RFID 인증 로직 및 상태 전이 관리 (중속).
+    * `AppTask100ms`: CAN 통신 처리 및 상태 LED 관리 (저속).
+
 **Development Date**: 2026. 03. 25.  ~ 2026. 04. 07.
 
 **Confluence Link**: https://autoever-fibonacci.atlassian.net/wiki/external/ZGRjN2IwYWE1OTQxNDg2ZjkxZTVlYThlYWI1M2Y5ZWU
