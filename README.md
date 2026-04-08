@@ -162,77 +162,108 @@ GTM PWM을 이용한 속도 제어 및 GPIO 폴링 기반 인코더 카운팅을
 
 ## 6. ECU 상세 명세: AURIX TC375 (HVAC & HMI)
 
-HVAC & HMI ECU는 차량 내부의 편의 기능(공조 시스템, 앰비언트 라이트) 제어와 사용자와의 상호작용을 위한 인터페이스(LCD, 조이스틱) 처리를 담당합니다.
+HVAC & HMI ECU는 차량 내부의 편의 기능인 공조 시스템(HVAC)과 앰비언트 라이트를 제어하며, 사용자가 시스템 설정을 변경할 수 있는 사용자 인터페이스(LCD, 조이스틱) 처리를 담당합니다.
 
 ### 6.1. Application Software Layer (AppSW)
 
-#### 💡 Ambient Light Manager (`App_Amb.c/h`)
-네오픽셀 LED를 사용하여 차량 내부 분위기를 조성하며, 다양한 시각적 효과를 관리합니다.
+#### Ambient Light Manager (`App_Amb.c/h`)
+네오픽셀을 이용하여 다양한 시각적 효과(숨쉬기, 파도타기, 비상 깜빡임 등)를 생성합니다.
 
-* **주요 열거형(Enum)**
-    * `Amb_mode_e`: 앰비언트 동작 모드 (`OFF`, `CONSTANT`, `BREATH`, `WAVE_L`, `WAVE_R`, `BLINK`)
-
-| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
-| :--- | :--- | :--- | :--- |
-| `App_Manager_Ambient_Init` | 앰비언트 라이트 초기 설정 (HSV 기본값 세팅) | `void` | `void` |
-| `App_Ambient_Nextmode` | 사용자 조작에 따른 다음 라이팅 모드 전환 | `void` | `void` |
-| `App_Manager_Ambient_Run` | 모드별 애니메이션(숨쉬기, 파도타기) 로직 업데이트 | `void` | `void` |
-| `App_Ambient_changeColor` | 색상(Hue) 값을 특정량만큼 변경 | `sint8 amount` | `void` |
-| `Amb_setmode` | 외부 요청(인증 등)에 의한 강제 모드 설정 | `Amb_mode_e mode` | `void` |
-
-#### ❄️ HVAC Manager (`App_Hvac.c/h`)
-실내 온도를 모니터링하여 설정된 임계값에 따라 팬(Fan)과 히터/에어컨(LED)을 제어합니다.
+* **Enums & Variables**
+    * `Amb_mode_e`: 앰비언트 모드 (`AMB_OFF`, `AMB_CONSTANT`, `AMB_BREATH`, `AMB_WAVE_L`, `AMB_WAVE_R`, `AMB_BLINK`)
+    * `baseh`, `bases`, `basev`: 기본 HSV(색조, 채도, 명도) 값
 
 | 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
 | :--- | :--- | :--- | :--- |
-| `App_Manaver_HVAC_Init` | 공조 시스템 초기화 및 기본 온도 임계값 설정 | `void` | `void` |
-| `Hvac_setHeatThreshold` | 히터 작동 시작 온도 설정 | `sint8 th` | `uint8 (Error)` |
-| `Hvac_setCoolThreshold` | 에어컨 작동 시작 온도 설정 | `sint8 th` | `uint8 (Error)` |
-| `App_Manager_Hvac_updateTemp` | 센서로부터 수신된 현재 온도를 업데이트 | `sint8 temp` | `void` |
-| `App_Manager_HVAC_Run` | 현재 온도와 임계값을 비교하여 공조 장치 제어 | `void` | `void` |
+| `App_Manager_Ambient_Init` | 네오픽셀 초기화 및 기본 HSV 값 설정 | `void` | `void` |
+| `App_Ambient_Nextmode` | 순차적으로 다음 앰비언트 효과로 전환 | `void` | `void` |
+| `App_Manager_Ambient_Run` | 설정된 모드에 따른 애니메이션 프레임 업데이트 및 전송 | `void` | `void` |
+| `App_Ambient_changeColor` | 색상(Hue) 값을 입력받은 양만큼 가감 (0~359 범위 유지) | `sint8 amount` | `void` |
+| `Amb_setmode` | 외부 요청에 의한 앰비언트 모드 강제 설정 | `Amb_mode_e mode` | `void` |
+| `Amb_setcolor2x` | 입력값의 2배로 색조(Hue) 설정 | `uint8 amount` | `void` |
+| `Amb_getHue` | 현재 설정된 색조(Hue) 값 조회 | `uint16 *hue` | `void` |
 
-#### 🖥️ UI & LCD Manager (`App_UI.c/h`, `App_LCD.c/h`)
-I2C LCD와 조이스틱을 통해 사용자가 시스템 설정을 변경할 수 있는 HMI를 제공합니다.
-
-* **주요 열거형(Enum)**
-    * `uistate`: UI 페이지 상태 (`PROFILE_SEL`, `AMB_COL_SEL`, `AMB_MOD_SEL`, `COOLTEM_SEL`, `HEATTEM_SEL`, `PROFILE_ADD`)
-
-| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
-| :--- | :--- | :--- | :--- |
-| `App_Manager_UI_Init` | UI 초기화 및 조이스틱/LCD 모듈 시작 | `void` | `void` |
-| `App_Manager_UI_Run` | 조이스틱 입력 처리 및 LCD 화면 렌더링 | `void` | `void` |
-| `LCD_printString` | LCD 특정 라인에 문자열 출력 | `char *str, LCD_line_e line` | `void` |
-| `profupdate` | 변경된 UI 설정값을 시스템 프로필 테이블에 반영 | `void` | `void (Internal)` |
-
-#### 🧠 System Manager (`App_Manager_System.c/h`)
-전체 시스템 상태 동기화 및 프로필 데이터 무결성을 관리합니다.
+#### HVAC Manager (`App_Hvac.c/h`)
+설정된 온도 임계값에 따라 팬 속도와 히터/에어컨(LED) 상태를 결정합니다.
 
 | 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
 | :--- | :--- | :--- | :--- |
-| `App_Manager_System_Init` | 시스템 컨텍스트 초기화 및 초기 프로필 폴링 시작 | `void` | `void` |
-| `App_Manager_System_UpdateState` | 시스템 상태에 따른 LCD 백라이트 및 비상 출력 제어 | `Shared_System_State_t state` | `void` |
-| `App_Manager_System_SetActiveProfileIndex` | 활성화된 사용자 인덱스 설정 및 관련 편의설정 즉시 적용 | `uint8 idx` | `void` |
-| `App_Manager_System_UpdateProfileTable` | CAN 수신 데이터를 통해 RAM 내 프로필 테이블 동기화 | `const Shared_Profile_Table_t *table` | `void` |
+| `App_Manaver_HVAC_Init` | 공조 핀 설정 및 초기 임계값(18/26도) 설정 | `void` | `void` |
+| `Hvac_setHeatThreshold` | 히터 작동 임계값 설정 (안전 범위를 벗어나면 거부) | `sint8 th` | `uint8 (0:성공, 1:실패)` |
+| `Hvac_setCoolThreshold` | 에어컨 작동 임계값 설정 (안전 범위를 벗어나면 거부) | `sint8 th` | `uint8 (0:성공, 1:실패)` |
+| `App_Manager_HVAC_Run` | 현재 온도와 임계값을 비교하여 팬 속도 및 LED 제어 | `void` | `void` |
+| `App_Manager_Hvac_updateTemp` | SS ECU로부터 수신한 실시간 실내 온도 업데이트 | `sint8 temp` | `void` |
+
+#### UI & HMI Manager (`App_UI.c/h`, `App_LCD.c/h`)
+LCD 메뉴 구조를 관리하고 조이스틱 입력을 처리하여 사용자 설정을 변경합니다.
+
+* **Internal States**
+    * `uistate`: UI 페이지 (`ST_PROFILE_SEL`, `ST_AMB_COL_SEL`, `ST_AMB_MOD_SEL`, `ST_COOLTEM_SEL`, `ST_HEATTEM_SEL`, `ST_PROFILE_ADD`)
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `App_Manager_UI_Init` | LCD, 조이스틱 초기화 및 시작 화면 출력 | `void` | `void` |
+| `App_Manager_UI_Run` | 조이스틱/스위치 입력 감시 및 LCD 화면 갱신 | `void` | `void` |
+| `LCD_printString` | LCD의 지정된 라인(Upper/Lower)에 문자열 출력 | `char *str, LCD_line_e line` | `void` |
+| `profupdate` | UI에서 변경된 값(앰비언트, 온도)을 현재 프로필에 저장 | `void` | `void (Static)` |
 
 ---
 
-### 6.2. Communication Service (`App_Can_Service.c/h`)
+### 6.2. Base Software Layer (BaseSW)
 
-TC375가 수신하는 다양한 CAN 프레임을 파싱하여 적절한 매니저 함수로 라우팅합니다.
+#### Joystick & ADC Driver (`Base_joystick.c`, `Base_EVADC.c`)
+조이스틱의 아날로그 입력을 디지털 값으로 변환하여 방향을 인식합니다.
 
-| 함수명 | 상세 내용 | 수신 ID / 처리 내용 |
-| :--- | :--- | :--- |
-| `App_Can_Service_HandleRxFrame` | CAN ID 기반 로직 분기 | `AB_PROFILE_IDX`, `SS_STATE`, `SS_TEMP` 등 |
-| `App_Can_Service_BuildProfileIdxFrame` | 변경된 프로필 인덱스 송신용 생성 | `SHARED_CAN_MSG_ID_HH_PROFILE_IDX` |
-| `App_Can_Service_BuildProfileTableFrame` | 변경된 편의 사양 테이블 송신용 생성 | `SHARED_CAN_MSG_ID_HH_PROFILE_TABLE` |
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `init_EVADC` | EVADC 모듈 그룹 및 채널(큐 방식) 초기화 | `void` | `void` |
+| `read_EVADC_Values` | ADC 결과 레지스터에서 두 채널의 변환 값 획득 | `uint16 *res1, uint16 *res2` | `void` |
+| `Joystick_read` | ADC 값을 분석하여 조이스틱의 방향 판정 (Hysteresis 적용) | `void` | `joystick_dir_e` |
+
+#### Fan (PWM) Driver (`Base_Fan.c`)
+GTM TOM을 사용하여 냉각 팬의 속도를 제어하기 위한 PWM을 생성합니다.
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `Fan_init` | GTM 모듈 활성화 및 P02.1 핀 PWM 출력 설정 | `void` | `void` |
+| `Fan_setSpeed` | Shadow 레지스터 업데이트를 통한 팬 듀티 사이클 변경 | `uint8 speed` | `void` |
+
+#### Neopixel SPI-DMA Driver (`Base_Neopixel.c`)
+QSPI1과 DMA를 연동하여 고속으로 네오픽셀 비트 스트림을 전송합니다.
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `setNeopixelColor` | 특정 인덱스 LED의 GRB 색상을 SPI 패턴 버퍼에 기록 | `uint32 ledIdx, uint8 r, uint8 g, uint8 b` | `void` |
+| `transmitNeopixel` | 구성된 SPI 패턴 버퍼를 DMA를 통해 하드웨어로 전송 | `void` | `void` |
+| `convertHSVtoRGB` | HSV 색상 모델을 Neopixel 제어를 위한 RGB 모델로 변환 | `float h, float s, float v, uint8 *r, uint8 *g, uint8 *b` | `void` |
+
+#### I2C LCD Driver (`Base_I2C.c`)
+I2C0 모듈을 사용하여 LCD 컨트롤러에 명령어와 데이터를 전송합니다.
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `init_I2C_module` | I2C 마스터 모듈 및 슬레이브 디바이스(LCD) 초기화 | `void` | `void` |
+| `I2C_writeSingleByte` | I2C 버스를 통해 1바이트 데이터를 슬레이브로 기록 | `uint8 byte` | `void` |
+
+#### MCMCAN FD Driver (`MCMCAN_FD.c`)
+CAN FD를 통한 데이터 송수신을 담당합니다. (64바이트 지원)
+
+| 함수명 | 상세 내용 | 입력 파라미터 | 반환값 |
+| :--- | :--- | :--- | :--- |
+| `initMcmcan` | CAN 트랜시버 활성화, 클럭 공급 및 노드 설정 | `void` | `void` |
+| `transmitCanMessage` | 지정된 ID로 64바이트 데이터를 CAN FD로 전송 | `uint32 txId, const uint32 *pData` | `boolean` |
 
 ---
 
-### 6.3. Scheduler (`App_Scheduler.c`)
+### 6.3. Scheduler & Communication Entry (`App_Scheduler.c`, `App_Can_Service.c`)
 
-* **10ms Task**: UI 갱신, 조이스틱 입력 처리, 앰비언트 라이트 애니메이션 업데이트.
-* **100ms Task**: CAN RX/TX 처리, 시스템 상태 감시, HVAC 온도 제어 로직 실행.
-* **Init (Polling)**: 초기 구동 시 `App_PollProfileTableAtInit`을 통해 타 ECU로부터 최신 프로필 데이터를 수신할 때까지 대기하여 데이터 동기화를 보장합니다.
+* **Task Management**:
+    * `10ms Task`: UI 갱신(`App_Manager_UI_Run`), 앰비언트 라이트 애니메이션 업데이트.
+    * `100ms Task`: CAN 수신 처리, HVAC 공조 로직 실행, 주기적 CAN 메시지 송신.
+* **CAN Frame Routing**:
+    * `SS_STATE`: 전체 시스템 상태 동기화 (Sleep 시 LCD OFF, Emergency 시 경고 출력).
+    * `SS_TEMP`: 실시간 온도 수신 및 HVAC 제어 파라미터로 전달.
+    * `AB_PROFILE_IDX`: Access 보드에서 받은 인증 결과를 바탕으로 사용자 프로필 즉시 적용.
 
 
 **Development Date**: 2026. 03. 25.  ~ 2026. 04. 07.
